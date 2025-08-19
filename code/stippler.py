@@ -42,9 +42,9 @@
 import tqdm
 import voronoi
 import os.path
-import scipy.misc
 import scipy.ndimage
 import numpy as np
+from PIL import Image
 
 def normalize(D):
     Vmin, Vmax = D.min(), D.max()
@@ -135,7 +135,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     filename = args.filename
-    density = scipy.misc.imread(filename, flatten=True, mode='L')
+    # Load image using PIL instead of deprecated scipy.misc.imread
+    image = Image.open(filename).convert('L')  # Convert to grayscale
+    density = np.array(image, dtype=float)
 
     # We want (approximately) 500 pixels per voronoi region
     zoom = (args.n_point * 500) / (density.shape[0]*density.shape[1])
