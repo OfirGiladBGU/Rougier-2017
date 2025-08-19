@@ -51,6 +51,10 @@ SHOW_FINAL = False          # Display final result in a window
 INVERT_COLORS = False       # Invert image colors (black becomes white, white becomes black)
                             # Useful for images where you want to stipple the light areas instead of dark areas
 
+# OVERLAY MODE
+OVERLAY_MODE = True         # Export overlay image with yellow points over grayscale background
+                            # Output: *-stipple-overlay.png
+
 # =============================================================================
 # SCRIPT EXECUTION - Don't modify below unless you know what you're doing
 # =============================================================================
@@ -93,6 +97,8 @@ def run_stippling():
         cmd.append("--display")
     if INVERT_COLORS:
         cmd.append("--invert")
+    if OVERLAY_MODE:
+        cmd.append("--overlay")
     
     # Print configuration
     print("Weighted Voronoi Stippling")
@@ -105,6 +111,7 @@ def run_stippling():
     print(f"Invert colors: {INVERT_COLORS}")
     print(f"Save result: {SAVE_RESULT}")
     print(f"Show progress: {SHOW_INTERACTIVE}")
+    print(f"Overlay mode: {OVERLAY_MODE}")
     print()
     print(f"Running: {' '.join(cmd)}")
     print()
