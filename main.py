@@ -47,6 +47,10 @@ FORCE_RECOMPUTE = True      # Overwrite existing results
 SHOW_INTERACTIVE = True     # Show progress during computation (slower)
 SHOW_FINAL = False          # Display final result in a window
 
+# IMAGE PROCESSING OPTIONS
+INVERT_COLORS = False       # Invert image colors (black becomes white, white becomes black)
+                            # Useful for images where you want to stipple the light areas instead of dark areas
+
 # =============================================================================
 # SCRIPT EXECUTION - Don't modify below unless you know what you're doing
 # =============================================================================
@@ -87,6 +91,8 @@ def run_stippling():
         cmd.append("--interactive")
     if SHOW_FINAL:
         cmd.append("--display")
+    if INVERT_COLORS:
+        cmd.append("--invert")
     
     # Print configuration
     print("Weighted Voronoi Stippling")
@@ -96,6 +102,7 @@ def run_stippling():
     print(f"Iterations: {N_ITERATIONS}")
     print(f"Point size: {POINT_SIZE_MIN} - {POINT_SIZE_MAX}")
     print(f"Threshold: {THRESHOLD}")
+    print(f"Invert colors: {INVERT_COLORS}")
     print(f"Save result: {SAVE_RESULT}")
     print(f"Show progress: {SHOW_INTERACTIVE}")
     print()

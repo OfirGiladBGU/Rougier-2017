@@ -132,12 +132,19 @@ if __name__ == '__main__':
     parser.add_argument('--interactive', action='store_true',
                         default=default["interactive"],
                         help='Display intermediate results (slower)')
+    parser.add_argument('--invert', action='store_true',
+                        default=False,
+                        help='Invert image colors (black becomes white, white becomes black)')
     args = parser.parse_args()
 
     filename = args.filename
     # Load image using PIL instead of deprecated scipy.misc.imread
     image = Image.open(filename).convert('L')  # Convert to grayscale
     density = np.array(image, dtype=float)
+    
+    # Invert image colors if requested
+    if args.invert:
+        density = 255.0 - density
 
     # We want (approximately) 500 pixels per voronoi region
     zoom = (args.n_point * 500) / (density.shape[0]*density.shape[1])
