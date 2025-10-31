@@ -62,7 +62,7 @@ def run(args):
     image = image.resize(args.image_size, Image.LANCZOS)
 
     # Export to SOURCE_PATH
-    image.save(args.grayscale_filename)
+    image.save(args.source_filename)
 
     density = np.array(image, dtype=np.float32)
     
