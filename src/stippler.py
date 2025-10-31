@@ -98,9 +98,9 @@ def main(args):
         density = 255.0 - density
 
     # We want (approximately) 500 pixels per voronoi region
-    zoom = (args.n_point * 500) / (density.shape[0]*density.shape[1])
-    zoom = int(round(np.sqrt(zoom)))
-    density = scipy.ndimage.zoom(density, zoom, order=0)
+    # zoom = (args.n_point * 500) / (density.shape[0]*density.shape[1])
+    # zoom = int(round(np.sqrt(zoom)))
+    # density = scipy.ndimage.zoom(density, zoom, order=0)
     # Apply threshold onto image
     # Any color > threshold will be white
     density = np.minimum(density, args.threshold)
@@ -139,52 +139,11 @@ def main(args):
     bbox = np.array([xmin, xmax, ymin, ymax])
     ratio = (xmax-xmin)/(ymax-ymin)
 
-    # Interactive display
-    if args.interactive:
+    # Non-interactive mode
+    for i in tqdm.trange(args.n_iter):
+        regions, points = voronoi.centroids(points, density, bbox, density_P, density_Q)
 
-        # Setup figure
-        fig = plt.figure(figsize=(args.figsize, args.figsize/ratio),
-                         facecolor="white")
-        ax = fig.add_axes([0, 0, 1, 1], frameon=False)
-        ax.set_xlim([xmin, xmax])
-        ax.set_xticks([])
-        ax.set_ylim([ymin, ymax])
-        ax.set_yticks([])
-        scatter = ax.scatter(points[:, 0], points[:, 1], s=1,
-                             facecolor="k", edgecolor="None")
-
-        def update(frame):
-            global points
-            # Recompute weighted centroids
-            regions, points = voronoi.centroids(points, density, density_P, density_Q)
-
-            # Update figure
-            Pi = points.astype(int)
-            X = np.maximum(np.minimum(Pi[:, 0], density.shape[1]-1), 0)
-            Y = np.maximum(np.minimum(Pi[:, 1], density.shape[0]-1), 0)
-            sizes = (args.pointsize[0] +
-                     (args.pointsize[1]-args.pointsize[0])*density[Y, X])
-            scatter.set_offsets(points)
-            scatter.set_sizes(sizes)
-            bar.update()
-
-            # Save result at last frame
-            if (frame == args.n_iter-2 and
-                      (not os.path.exists(dat_filename) or args.save)):
-                np.save(dat_filename, points)
-                plt.savefig(pdf_filename)
-                plt.savefig(png_filename)
-
-        bar = tqdm.tqdm(total=args.n_iter)
-        animation = FuncAnimation(fig, update,
-                                  repeat=False, frames=args.n_iter-1)
-        plt.show()
-
-    elif not os.path.exists(dat_filename) or args.force:
-        for i in tqdm.trange(args.n_iter):
-            regions, points = voronoi.centroids(points, density, density_P, density_Q)
-
-            
+    # Export final result
     if (args.save or args.display) and not args.interactive:
         fig = plt.figure(figsize=(args.figsize, args.figsize/ratio),
                          facecolor="white")
@@ -218,30 +177,30 @@ def main(args):
     #     ax.plot(vertices[:, 0], vertices[:, 1], linewidth=.5, color='.5' )
 
     # Overlay mode: yellow points over grayscale background
-    if args.overlay:
-        # Reload the original grayscale image (not normalized, not thresholded)
-        orig_img = Image.open(filename).convert('L')
-        orig_arr = np.array(orig_img)
-        height, width = orig_arr.shape
-        fig = plt.figure(figsize=(width/100, height/100), dpi=100, facecolor="white")
-        ax = fig.add_axes([0, 0, 1, 1], frameon=False)
-        ax.imshow(orig_arr, cmap='gray', vmin=0, vmax=255, origin='upper')
-        ax.set_xlim([0, width])
-        ax.set_xticks([])
-        ax.set_ylim([height, 0])
-        ax.set_yticks([])
-        # Scale points to image pixel coordinates
-        scale_x = width / density.shape[1]
-        scale_y = height / density.shape[0]
-        points_img = np.copy(points)
-        points_img[:, 0] *= scale_x
-        points_img[:, 1] *= scale_y
-        scatter = ax.scatter(points_img[:, 0], points_img[:, 1], s=1, facecolor="yellow", edgecolor="None")
-        sizes = (args.pointsize[0] + (args.pointsize[1]-args.pointsize[0]))
-        scatter.set_offsets(points_img)
-        scatter.set_sizes(np.full(points_img.shape[0], sizes))
-        plt.savefig(overlay_filename, dpi=100, bbox_inches='tight', pad_inches=0)
-        plt.close(fig)
+    # if args.overlay:
+    #     # Reload the original grayscale image (not normalized, not thresholded)
+    #     orig_img = Image.open(filename).convert('L')
+    #     orig_arr = np.array(orig_img)
+    #     height, width = orig_arr.shape
+    #     fig = plt.figure(figsize=(width/100, height/100), dpi=100, facecolor="white")
+    #     ax = fig.add_axes([0, 0, 1, 1], frameon=False)
+    #     ax.imshow(orig_arr, cmap='gray', vmin=0, vmax=255, origin='upper')
+    #     ax.set_xlim([0, width])
+    #     ax.set_xticks([])
+    #     ax.set_ylim([height, 0])
+    #     ax.set_yticks([])
+    #     # Scale points to image pixel coordinates
+    #     scale_x = width / density.shape[1]
+    #     scale_y = height / density.shape[0]
+    #     points_img = np.copy(points)
+    #     points_img[:, 0] *= scale_x
+    #     points_img[:, 1] *= scale_y
+    #     scatter = ax.scatter(points_img[:, 0], points_img[:, 1], s=1, facecolor="yellow", edgecolor="None")
+    #     sizes = (args.pointsize[0] + (args.pointsize[1]-args.pointsize[0]))
+    #     scatter.set_offsets(points_img)
+    #     scatter.set_sizes(np.full(points_img.shape[0], sizes))
+    #     plt.savefig(overlay_filename, dpi=100, bbox_inches='tight', pad_inches=0)
+    #     plt.close(fig)
 
 
 

@@ -219,7 +219,7 @@ def voronoi(points, bbox):
     return vor
 
 
-def centroids(points, density, density_P=None, density_Q=None):
+def centroids(points, density, bbox, density_P=None, density_Q=None):
     """
     Given a set of point and a density array, return the set of weighted
     centroids.
@@ -230,9 +230,6 @@ def centroids(points, density, density_P=None, density_Q=None):
     #   0 < X.min() < X.max() < density.shape[0]
     #   0 < Y.min() < Y.max() < density.shape[1]
     
-    xmin, xmax = 0, density.shape[1]
-    ymin, ymax = 0, density.shape[0]
-    bbox = np.array([xmin, xmax, ymin, ymax])
     vor = voronoi(points, bbox)
     regions = vor.filtered_regions
     centroids = []
