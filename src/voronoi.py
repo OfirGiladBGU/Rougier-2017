@@ -5,6 +5,11 @@
 import numpy as np
 import scipy.spatial
 
+
+# ----------------------------
+# Utilities for acceleration modes
+# ----------------------------
+
 # Optional acceleration with Numba (CPU JIT)
 try:
     from numba import njit
@@ -12,10 +17,68 @@ try:
 except Exception:
     NUMBA_AVAILABLE = False
 
+# Optional GPU acceleration with PyTorch/CUDA
+try:
+    import torch
+    CUDA_AVAILABLE = torch.cuda.is_available()
+except Exception:
+    CUDA_AVAILABLE = False
 
-# ----------------------------
-# Numba-accelerated variants
-# ----------------------------
+# Simple GPU cache for density cumulative arrays to avoid re-transfers each iteration
+_GPU_CACHE = {
+    'key': None,
+    'P': None,
+    'Q': None,
+    'device': None,
+}
+
+def _get_PQ_gpu(P_np, Q_np, device='cuda'):
+    if not CUDA_AVAILABLE:
+        raise RuntimeError("CUDA not available")
+    key = (id(P_np), id(Q_np), device)
+    if _GPU_CACHE['key'] == key and _GPU_CACHE['P'] is not None and _GPU_CACHE['Q'] is not None:
+        return _GPU_CACHE['P'], _GPU_CACHE['Q']
+    # Transfer to GPU (float32 for performance)
+    with torch.no_grad():
+        P_gpu = torch.as_tensor(P_np, dtype=torch.float32, device=device)
+        Q_gpu = torch.as_tensor(Q_np, dtype=torch.float32, device=device)
+    _GPU_CACHE['key'] = key
+    _GPU_CACHE['P'] = P_gpu
+    _GPU_CACHE['Q'] = Q_gpu
+    _GPU_CACHE['device'] = device
+    return P_gpu, Q_gpu
+
+
+def _build_outlines(vertices_list):
+    """
+    Build a single outline array and region id array for a list of regions.
+
+    Returns
+    -------
+    O_all : (M,3) int array of [x1, x2, y]
+    rid_all : (M,) int array region indices for each row in O_all
+    n_regions : int number of regions
+    """
+    outlines = []
+    region_ids = []
+    n_regions = len(vertices_list)
+    for idx, V in enumerate(vertices_list):
+        if NUMBA_AVAILABLE:
+            Vc = np.ascontiguousarray(V, dtype=np.float64)
+            O = _rasterize_outline_numba(Vc)
+        else:
+            O = rasterize_outline(V)
+        if O is None or len(O) == 0:
+            continue
+        outlines.append(O)
+        region_ids.append(np.full((O.shape[0],), idx, dtype=np.int64))
+    if len(outlines) == 0:
+        return np.zeros((0, 3), dtype=np.int64), np.zeros((0,), dtype=np.int64), n_regions
+    O_all = np.vstack(outlines)
+    rid_all = np.concatenate(region_ids)
+    return O_all, rid_all, n_regions
+
+
 if NUMBA_AVAILABLE:
     @njit(cache=True)
     def _rasterize_outline_numba(V):
@@ -70,45 +133,177 @@ if NUMBA_AVAILABLE:
                 i2 += 2
         return points[:index]
 
-    @njit(cache=True)
-    def _weighted_centroid_outline_numba(V, P, Q):
-        O = _rasterize_outline_numba(V)
-        if O.shape[0] == 0:
-            return np.array([0.0, 0.0])
 
+# ----------------------------
+# CUDA/GPU-accelerated variants
+# ----------------------------
+if CUDA_AVAILABLE:
+    def _weighted_centroids_batch_gpu(vertices_list, P_np, Q_np, device='cuda'):
+        """
+        Compute weighted centroids for multiple polygons in parallel on GPU.
+
+        Strategy:
+        - Rasterize region outlines on CPU (Numba if available) to get scanline segments
+        - Concatenate all segments from all regions into a single tensor with region ids
+        - Do one big GPU gather+reduction using scatter_add to accumulate per-region sums
+        This minimizes CPU<->GPU transfers and per-region kernel overhead.
+        """
+        # Build outlines for all regions on CPU (Numba if available)
+        O_all, rid_all, n_regions = _build_outlines(vertices_list)
+        if O_all.shape[0] == 0:
+            return np.zeros((n_regions, 2), dtype=np.float32)
+
+        # Get (or build) GPU copies of P and Q once
+        P_gpu, Q_gpu = _get_PQ_gpu(P_np, Q_np, device=device)
+        height, width = P_gpu.shape
+
+        with torch.no_grad():
+            # Transfer outlines to GPU (int64), compute all at once
+            y_vals = torch.as_tensor(O_all[:, 2], dtype=torch.int64, device=device)
+            x1_vals = torch.as_tensor(O_all[:, 0], dtype=torch.int64, device=device)
+            x2_vals = torch.as_tensor(O_all[:, 1], dtype=torch.int64, device=device)
+            rids = torch.as_tensor(rid_all, dtype=torch.int64, device=device)
+
+            # Clamp to valid ranges
+            y_vals = torch.clamp(y_vals, 0, int(height) - 1)
+            x1_vals = torch.clamp(x1_vals, 0, int(width) - 1)
+            x2_vals = torch.clamp(x2_vals, 0, int(width) - 1)
+
+            # Gather P and Q values (vectorized)
+            P_y_x2 = P_gpu[y_vals, x2_vals]
+            P_y_x1 = P_gpu[y_vals, x1_vals]
+            Q_y_x2 = Q_gpu[y_vals, x2_vals]
+            Q_y_x1 = Q_gpu[y_vals, x1_vals]
+
+            # Compute per-segment contributions
+            d_line = P_y_x2 - P_y_x1  # (M,)
+            x_contrib = ((x2_vals.to(torch.float32) * P_y_x2 - Q_y_x2) -
+                         (x1_vals.to(torch.float32) * P_y_x1 - Q_y_x1))
+            y_contrib = y_vals.to(torch.float32) * d_line
+
+            # Reduce per region using scatter_add
+            d = torch.zeros(n_regions, dtype=torch.float32, device=device)
+            x_sum = torch.zeros_like(d)
+            y_sum = torch.zeros_like(d)
+            d.scatter_add_(0, rids, d_line.to(torch.float32))
+            x_sum.scatter_add_(0, rids, x_contrib)
+            y_sum.scatter_add_(0, rids, y_contrib)
+
+            # Avoid division by zero
+            nonzero = d != 0
+            cx = torch.zeros_like(d)
+            cy = torch.zeros_like(d)
+            cx[nonzero] = x_sum[nonzero] / d[nonzero]
+            cy[nonzero] = y_sum[nonzero] / d[nonzero]
+
+            # For zero-mass regions, fallback to zeros (rare)
+            centroids = torch.stack([cx, cy], dim=1).cpu().numpy()
+
+        return centroids
+
+
+# ----------------------------
+# Numba-accelerated variants
+# ----------------------------
+if NUMBA_AVAILABLE:
+    def _weighted_centroids_batch_numba(vertices_list, P, Q):
+        O_all, rid_all, n_regions = _build_outlines(vertices_list)
+        if O_all.shape[0] == 0:
+            return np.zeros((n_regions, 2), dtype=np.float32)
+        # Ensure types compatible with numba
+        O_all = np.ascontiguousarray(O_all, dtype=np.int64)
+        rid_all = np.ascontiguousarray(rid_all, dtype=np.int64)
+        P = np.ascontiguousarray(P)
+        Q = np.ascontiguousarray(Q)
+        C = _reduce_segments_numba(O_all, rid_all, P, Q, n_regions)
+        return C.astype(np.float32)
+    
+    @njit(cache=True)
+    def _reduce_segments_numba(O_all, rid_all, P, Q, n_regions):
         height = P.shape[0]
         width = P.shape[1]
-
-        d = 0.0
-        x_sum = 0.0
-        y_sum = 0.0
-        for k in range(O.shape[0]):
-            y = O[k, 2]
+        d = np.zeros(n_regions, dtype=np.float64)
+        x_sum = np.zeros(n_regions, dtype=np.float64)
+        y_sum = np.zeros(n_regions, dtype=np.float64)
+        M = O_all.shape[0]
+        for i in range(M):
+            y = O_all[i, 2]
             if y < 0:
                 continue
             if y >= height:
                 y = height - 1
-            x1 = O[k, 0]
-            x2 = O[k, 1]
-            if x1 >= width:
-                x1 = width - 1
-            if x2 >= width:
-                x2 = width - 1
+            x1 = O_all[i, 0]
+            x2 = O_all[i, 1]
             if x1 < 0:
                 x1 = 0
+            if x1 >= width:
+                x1 = width - 1
             if x2 < 0:
                 x2 = 0
+            if x2 >= width:
+                x2 = width - 1
 
             p2 = P[y, x2]
             p1 = P[y, x1]
             d_line = p2 - p1
-            d += d_line
-            x_sum += (x2 * p2 - Q[y, x2]) - (x1 * p1 - Q[y, x1])
-            y_sum += y * d_line
+            rid = rid_all[i]
+            d[rid] += d_line
+            x_sum[rid] += (x2 * p2 - Q[y, x2]) - (x1 * p1 - Q[y, x1])
+            y_sum[rid] += y * d_line
 
-        if d != 0.0:
-            return np.array([x_sum / d, y_sum / d])
-        return np.array([x_sum, y_sum])
+        centroids = np.zeros((n_regions, 2), dtype=np.float64)
+        for r in range(n_regions):
+            if d[r] != 0.0:
+                centroids[r, 0] = x_sum[r] / d[r]
+                centroids[r, 1] = y_sum[r] / d[r]
+            else:
+                centroids[r, 0] = 0.0
+                centroids[r, 1] = 0.0
+        return centroids
+
+
+# ----------------------------
+# Numpy-accelerated variants
+# ----------------------------
+def _weighted_centroids_batch_numpy(vertices_list, P, Q):
+    """
+    Batched centroid computation using NumPy vectorization and bincount.
+    """
+    O_all, rid_all, n_regions = _build_outlines(vertices_list)
+    if O_all.shape[0] == 0:
+        return np.zeros((n_regions, 2), dtype=np.float32)
+
+    height, width = P.shape
+    # Extract columns
+    y = O_all[:, 2]
+    x1 = O_all[:, 0]
+    x2 = O_all[:, 1]
+    # Clamp
+    y = np.clip(y, 0, height-1)
+    x1 = np.clip(x1, 0, width-1)
+    x2 = np.clip(x2, 0, width-1)
+
+    # Gather from P, Q
+    p2 = P[y, x2]
+    p1 = P[y, x1]
+    q2 = Q[y, x2]
+    q1 = Q[y, x1]
+
+    d_line = p2 - p1
+    x_contrib = (x2 * p2 - q2) - (x1 * p1 - q1)
+    y_contrib = y * d_line
+
+    # Accumulate per region
+    d = np.bincount(rid_all, weights=d_line, minlength=n_regions)
+    x_sum = np.bincount(rid_all, weights=x_contrib, minlength=n_regions)
+    y_sum = np.bincount(rid_all, weights=y_contrib, minlength=n_regions)
+
+    centroids = np.zeros((n_regions, 2), dtype=np.float32)
+    nz = d != 0
+    centroids[nz, 0] = x_sum[nz] / d[nz]
+    centroids[nz, 1] = y_sum[nz] / d[nz]
+    # For zero-mass regions, leave (0,0)
+    return centroids
 
 
 # ----------------------------
@@ -341,23 +536,43 @@ def centroids(points, density, bbox, density_P=None, density_Q=None, accelerator
     
     vor = voronoi(points, bbox)
     regions = vor.filtered_regions
-    centroids = []
-    for region in regions:
-        vertices = vor.vertices[region + [region[0]], :]
-        # vertices = vor.filtered_points[region + [region[0]], :]
+    
+    # Build vertices list once
+    vertices_list = [vor.vertices[region + [region[0]], :] for region in regions]
 
-        # Full version from all the points
-        # centroid = weighted_centroid(vertices, density)
+    # GPU batch processing (most efficient for many regions)
+    if accelerator == 'cuda' and CUDA_AVAILABLE:
+        P = np.ascontiguousarray(density_P)
+        Q = np.ascontiguousarray(density_Q)
+        centroids_array = _weighted_centroids_batch_gpu(vertices_list, P, Q, device='cuda')
+        return regions, centroids_array
 
-        # Optimized version from only the outline
-        if accelerator == 'numba' and NUMBA_AVAILABLE:
-            # Ensure contiguous arrays of proper dtype for numba
-            V = np.ascontiguousarray(vertices, dtype=np.float64)
-            P = np.ascontiguousarray(density_P)
-            Q = np.ascontiguousarray(density_Q)
-            centroid = _weighted_centroid_outline_numba(V, P, Q)
-        else:
+    # CPU batched processing (Numba reduction)
+    if accelerator == 'numba' and NUMBA_AVAILABLE:
+        P = np.ascontiguousarray(density_P)
+        Q = np.ascontiguousarray(density_Q)
+        centroids_array = _weighted_centroids_batch_numba(vertices_list, P, Q)
+        return regions, centroids_array
+    
+    # CPU batched processing (NumPy)
+    elif accelerator == 'numpy':
+        P = np.ascontiguousarray(density_P)
+        Q = np.ascontiguousarray(density_Q)
+        centroids_array = _weighted_centroids_batch_numpy(vertices_list, P, Q)
+        return regions, centroids_array
+
+    # Default: non-batched processing
+    else:
+        centroids = []
+        for region in regions:
+            vertices = vor.vertices[region + [region[0]], :]
+            # vertices = vor.filtered_points[region + [region[0]], :]
+
+            # Full version from all the points
+            # centroid = weighted_centroid(vertices, density)
+
+            # Optimized version from only the outline
             centroid = weighted_centroid_outline(vertices, density_P, density_Q)
 
-        centroids.append(centroid)
-    return regions, np.array(centroids)
+            centroids.append(centroid)
+        return regions, np.array(centroids)

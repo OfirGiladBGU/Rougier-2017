@@ -42,7 +42,6 @@
 import tqdm
 import voronoi
 import os.path
-import scipy.ndimage
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -88,7 +87,20 @@ def initialization(n, D):
 
 def main(args):
     filename = args.filename
-    # Load image using PIL instead of deprecated scipy.misc.imread
+    
+    # Check acceleration availability and warn if requested but unavailable
+    if args.accelerator == 'numba':
+        if not voronoi.NUMBA_AVAILABLE:
+            print("Warning: Numba not available, falling back to default CPU mode")
+            print("  Install with: pip install numba")
+    elif args.accelerator == 'cuda':
+        if not voronoi.CUDA_AVAILABLE:
+            print("Warning: CUDA/GPU not available, falling back to default CPU mode")
+            print("  Install PyTorch with CUDA: pip install torch --index-url https://download.pytorch.org/whl/cu118")
+        else:
+            import torch
+            print(f"GPU acceleration enabled: {torch.cuda.get_device_name(0)}")
+    
     image = Image.open(filename).convert('L')  # Convert to grayscale
     density = np.array(image, dtype=np.float32)
     
@@ -96,10 +108,6 @@ def main(args):
     if args.invert:
         density = 255.0 - density
 
-    # We want (approximately) 500 pixels per voronoi region
-    # zoom = (args.n_point * 500) / (density.shape[0]*density.shape[1])
-    # zoom = int(round(np.sqrt(zoom)))
-    # density = scipy.ndimage.zoom(density, zoom, order=0)
     # Apply threshold onto image
     # Any color > threshold will be white
     density = np.minimum(density, args.threshold)
@@ -163,7 +171,7 @@ def main(args):
 
         # Save stipple points and tippled image
         if not os.path.exists(dat_filename) or args.save:
-            np.save(dat_filename, points)
+            # np.save(dat_filename, points)
             plt.savefig(pdf_filename)
             plt.savefig(png_filename)
 
@@ -255,8 +263,8 @@ if __name__ == '__main__':
     parser.add_argument('--overlay', action='store_true',
                         default=False,
                         help='Export overlay image with yellow points over grayscale background')
-    parser.add_argument('--accelerator', choices=['none', 'numba'], default='none',
-                        help='Optional acceleration backend (numba if installed)')
+    parser.add_argument('--accelerator', choices=['none', 'numba', 'cuda'], default='none',
+                        help='Optional acceleration backend (numba=CPU JIT, cuda=GPU if available)')
     args = parser.parse_args()
 
     main(args)

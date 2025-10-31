@@ -140,7 +140,7 @@ def run_stippling():
     args.display = False
     args.interactive = False
 
-    args.accelerator = "numba"
+    args.accelerator = "cuda"  # 'none', 'numpy', 'numba', 'cuda'
     args.invert = False
     args.overlay = False
 
