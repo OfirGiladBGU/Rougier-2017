@@ -151,7 +151,31 @@ def main(args):
         regions, points = voronoi.centroids(points, density, bbox, density_P, density_Q, accelerator=args.accelerator)
 
     # Export final result
-    if (args.save or args.display) and not args.interactive:
+    if args.save:
+        # Save raw points
+        np.save(dat_filename, points)
+
+        # Save binary PNG of stipple points (one-pixel dots)
+        H, W = density.shape[0], density.shape[1]
+        pts = np.rint(points).astype(int)
+        # Clip to image bounds
+        x = np.clip(pts[:, 0], 0, W - 1)
+        y = np.clip(pts[:, 1], 0, H - 1)
+        # Convert to top-left origin for image coordinates
+        y_img = (H - 1) - y
+
+        # # Create binary mask: white background (0), black points (255)
+        # mask = np.zeros((H, W), dtype=np.uint8)
+        # mask[y_img, x] = 255  # 255 = white points
+
+        # Create binary mask: white background (255), black points (0)
+        mask = np.full((H, W), 255, dtype=np.uint8)
+        mask[y_img, x] = 0  # 0 = black points
+
+        # Save as 1-bit PNG (black points on white background)
+        Image.fromarray(mask, mode='L').convert('1').save(png_filename)
+        
+        # Save plotted figure in PDF
         fig = plt.figure(figsize=(args.figsize, args.figsize/ratio),
                          facecolor="white")
         ax = fig.add_axes([0, 0, 1, 1], frameon=False)
@@ -169,14 +193,8 @@ def main(args):
         scatter.set_offsets(points)
         scatter.set_sizes(sizes)
 
-        # Save stipple points and tippled image
-        if not os.path.exists(dat_filename) or args.save:
-            # np.save(dat_filename, points)
-            plt.savefig(pdf_filename)
-            plt.savefig(png_filename)
-
-        if args.display:
-            plt.show()
+        # Save plotted figure (PDF) if requested
+        plt.savefig(pdf_filename)
 
     # Plot voronoi regions if you want
     # for region in vor.filtered_regions:
@@ -208,7 +226,6 @@ def main(args):
     #     scatter.set_sizes(np.full(points_img.shape[0], sizes))
     #     plt.savefig(overlay_filename, dpi=100, bbox_inches='tight', pad_inches=0)
     #     plt.close(fig)
-
 
 
 if __name__ == '__main__':

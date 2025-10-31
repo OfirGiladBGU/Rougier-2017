@@ -137,12 +137,12 @@ def run_stippling():
     args.force = True
     args.threshold = 255
     args.save = True
-    args.display = False
-    args.interactive = False
+    # args.display = False
+    # args.interactive = False
 
     args.accelerator = "cuda"  # 'none', 'numpy', 'numba', 'cuda'
     args.invert = False
-    args.overlay = False
+    # args.overlay = False
 
     # Check if image exists
     if not os.path.exists(args.filename):
