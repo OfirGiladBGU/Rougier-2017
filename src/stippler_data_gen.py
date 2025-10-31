@@ -143,9 +143,9 @@ def main():
     
     args.n_iter = 5
     args.n_point = 5000
-    args.pointsize = (1, 1)
-    args.figsize = 6
-    args.force = True
+    # args.pointsize = (1, 1)
+    # args.figsize = 6
+    # args.force = True
     args.threshold = 255
     # args.display = False
     # args.interactive = False
