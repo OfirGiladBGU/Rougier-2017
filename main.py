@@ -8,58 +8,59 @@ import os
 import sys
 import subprocess
 
-# =============================================================================
-# CONFIGURATION - Edit these variables to customize the algorithm
-# =============================================================================
 
-# INPUT IMAGE PATH
-# Change this to point to your image file
-IMAGE_PATH = "data/original/plant4h.png"
+def run_stippling_cmd():
+    # =============================================================================
+    # CONFIGURATION - Edit these variables to customize the algorithm
+    # =============================================================================
 
-# NUMBER OF STIPPLE POINTS
-# More points = better detail but slower processing
-# Typical values: 5000 (fast), 20000 (good), 50000 (high quality)
-N_POINTS = 20000
+    # INPUT IMAGE PATH
+    # Change this to point to your image file
+    IMAGE_PATH = "data/original/plant4h.png"
 
-# NUMBER OF ITERATIONS  
-# More iterations = better convergence but slower processing
-# Typical values: 25 (fast), 50 (good), 100 (high quality)
-N_ITERATIONS = 25
+    # NUMBER OF STIPPLE POINTS
+    # More points = better detail but slower processing
+    # Typical values: 5000 (fast), 20000 (good), 50000 (high quality)
+    N_POINTS = 20000
 
-# POINT SIZE (min, max)
-# Controls the size of dots in the final image
-# Smaller values = finer detail
-POINT_SIZE_MIN = 1.5
-POINT_SIZE_MAX = 1.5
+    # NUMBER OF ITERATIONS  
+    # More iterations = better convergence but slower processing
+    # Typical values: 25 (fast), 50 (good), 100 (high quality)
+    N_ITERATIONS = 25
 
-# FIGURE SIZE
-# Controls the output image size
-FIGURE_SIZE = 6
+    # POINT SIZE (min, max)
+    # Controls the size of dots in the final image
+    # Smaller values = finer detail
+    POINT_SIZE_MIN = 1.5
+    POINT_SIZE_MAX = 1.5
 
-# THRESHOLD
-# Grey level threshold (0-255)
-# Higher values = more selective about dark areas
-THRESHOLD = 255
+    # FIGURE SIZE
+    # Controls the output image size
+    FIGURE_SIZE = 6
 
-# OUTPUT OPTIONS
-SAVE_RESULT = True          # Save the stippled image to file
-FORCE_RECOMPUTE = True      # Overwrite existing results
-SHOW_INTERACTIVE = True     # Show progress during computation (slower)
-SHOW_FINAL = False          # Display final result in a window
+    # THRESHOLD
+    # Grey level threshold (0-255)
+    # Higher values = more selective about dark areas
+    THRESHOLD = 255
 
-# IMAGE PROCESSING OPTIONS
-INVERT_COLORS = False       # Invert image colors (black becomes white, white becomes black)
-                            # Useful for images where you want to stipple the light areas instead of dark areas
+    # OUTPUT OPTIONS
+    SAVE_RESULT = True          # Save the stippled image to file
+    FORCE_RECOMPUTE = True      # Overwrite existing results
+    SHOW_INTERACTIVE = True     # Show progress during computation (slower)
+    SHOW_FINAL = False          # Display final result in a window
 
-# OVERLAY MODE
-OVERLAY_MODE = True         # Export overlay image with yellow points over grayscale background
-                            # Output: *-stipple-overlay.png
+    # IMAGE PROCESSING OPTIONS
+    INVERT_COLORS = False       # Invert image colors (black becomes white, white becomes black)
+                                # Useful for images where you want to stipple the light areas instead of dark areas
 
-# =============================================================================
-# SCRIPT EXECUTION - Don't modify below unless you know what you're doing
-# =============================================================================
+    # OVERLAY MODE
+    OVERLAY_MODE = True         # Export overlay image with yellow points over grayscale background
+                                # Output: *-stipple-overlay.png
 
-def run_stippling():
+    # =============================================================================
+    # SCRIPT EXECUTION - Don't modify below unless you know what you're doing
+    # =============================================================================
+                            
     """Run the stippling algorithm with the configured parameters."""
     
     # Check if image exists
@@ -121,5 +122,36 @@ def run_stippling():
     return result.returncode
 
 
+def run_stippling():
+    import argparse
+    SRC_PATH = os.path.join(os.path.dirname(__file__), "src")
+    sys.path.append(SRC_PATH)
+    from src.stippler import main as stippler_main
+    
+    args = argparse.ArgumentParser().parse_args()
+    args.filename = "data/original/plant4h.png"
+    args.n_iter = 5
+    args.n_point = 5000
+    args.pointsize = (1, 1)
+    args.figsize = 6
+    args.force = True
+    args.threshold = 255
+    args.save = True
+    args.display = False
+    args.interactive = False
+
+    args.invert = False
+    args.overlay = False
+
+    # Check if image exists
+    if not os.path.exists(args.filename):
+        print(f"Error: Image file '{args.filename}' not found!")
+        print("Please update the IMAGE_PATH variable in this script.")
+        return 1
+
+    stippler_main(args)
+
+
 if __name__ == "__main__":
-    sys.exit(run_stippling())
+    # sys.exit(run_stippling_cmd())
+    run_stippling()

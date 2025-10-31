@@ -8,3 +8,6 @@ __pycache__
 *.out
 *.run.xml
 *.blg
+
+.venv/
+.vscode/
