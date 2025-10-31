@@ -45,6 +45,8 @@ import os.path
 import scipy.ndimage
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
+
 
 def normalize(D):
     Vmin, Vmax = D.min(), D.max()
@@ -85,13 +87,10 @@ def initialization(n, D):
 
 
 def main(args):
-    import matplotlib.pyplot as plt
-    from matplotlib.animation import FuncAnimation
-
     filename = args.filename
     # Load image using PIL instead of deprecated scipy.misc.imread
     image = Image.open(filename).convert('L')  # Convert to grayscale
-    density = np.array(image, dtype=float)
+    density = np.array(image, dtype=np.float32)
     
     # Invert image colors if requested
     if args.invert:
@@ -141,7 +140,7 @@ def main(args):
 
     # Non-interactive mode
     for i in tqdm.trange(args.n_iter):
-        regions, points = voronoi.centroids(points, density, bbox, density_P, density_Q)
+        regions, points = voronoi.centroids(points, density, bbox, density_P, density_Q, accelerator=args.accelerator)
 
     # Export final result
     if (args.save or args.display) and not args.interactive:
@@ -256,6 +255,8 @@ if __name__ == '__main__':
     parser.add_argument('--overlay', action='store_true',
                         default=False,
                         help='Export overlay image with yellow points over grayscale background')
+    parser.add_argument('--accelerator', choices=['none', 'numba'], default='none',
+                        help='Optional acceleration backend (numba if installed)')
     args = parser.parse_args()
 
     main(args)
