@@ -109,7 +109,7 @@ def run(args):
     mask[y_img, x] = 0  # 0 = black points
 
     # Export to OUTPUT_PATH
-    Image.fromarray(mask, mode='L').convert('1').save(args.output_filename)
+    Image.fromarray(mask, mode='L').convert('1').save(args.target_filename)
 
 
 # =============================================================================
@@ -124,8 +124,8 @@ def main():
     TARGET_PATH = os.path.join(ROOT_PATH, DATA_FOLDER, "target")
     JSON_PATH = os.path.join(ROOT_PATH, DATA_FOLDER, "prompt.json")
     IMAGES_PATH = os.path.join(ROOT_PATH, DATA_FOLDER, "original")
-    OUTPUT_PATH = os.path.join(ROOT_PATH, "output")
-    os.makedirs(OUTPUT_PATH, exist_ok=True)
+    # OUTPUT_PATH = os.path.join(ROOT_PATH, "output")
+    # os.makedirs(OUTPUT_PATH, exist_ok=True)
 
     # N = 10
     N = -1  # Set to -1 to process all images in the folder
@@ -163,7 +163,7 @@ def main():
     for i in tqdm(range(N)):
         args.filename = os.path.join(IMAGES_PATH, image_files[i])
         args.source_filename = os.path.join(SOURCE_PATH, image_files[i])
-        args.output_filename = os.path.join(OUTPUT_PATH, image_files[i])
+        args.target_filename = os.path.join(TARGET_PATH, image_files[i])
         run(args)
 
     # Export json
