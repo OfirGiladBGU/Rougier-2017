@@ -132,22 +132,12 @@ if __name__ == '__main__':
     parser.add_argument('--interactive', action='store_true',
                         default=default["interactive"],
                         help='Display intermediate results (slower)')
-    parser.add_argument('--invert', action='store_true',
-                        default=False,
-                        help='Invert image colors (black becomes white, white becomes black)')
-    parser.add_argument('--overlay', action='store_true',
-                        default=False,
-                        help='Export overlay image with yellow points over grayscale background')
     args = parser.parse_args()
 
     filename = args.filename
-    # Load image using PIL instead of deprecated scipy.misc.imread
-    image = Image.open(filename).convert('L')  # Convert to grayscale
+    # density = scipy.misc.imread(filename, flatten=True, mode='L')
+    image = Image.open(filename).convert('L')  # Load image using PIL instead of deprecated scipy.misc.imread
     density = np.array(image, dtype=float)
-    
-    # Invert image colors if requested
-    if args.invert:
-        density = 255.0 - density
 
     # We want (approximately) 500 pixels per voronoi region
     zoom = (args.n_point * 500) / (density.shape[0]*density.shape[1])
@@ -167,7 +157,6 @@ if __name__ == '__main__':
     pdf_filename = os.path.join(dirname, basename + "-stipple.pdf")
     png_filename = os.path.join(dirname, basename + "-stipple.png")
     dat_filename = os.path.join(dirname, basename + "-stipple.npy")
-    overlay_filename = os.path.join(dirname, basename + "-stipple-overlay.png")
 
     # Initialization
     if not os.path.exists(dat_filename) or args.force:
@@ -183,7 +172,6 @@ if __name__ == '__main__':
     print("Output file (PDF): %s " % pdf_filename)
     print("            (PNG): %s " % png_filename)
     print("            (DAT): %s " % dat_filename)
-    print("Overlay     (PNG): %s " % overlay_filename)
 
         
     xmin, xmax = 0, density.shape[1]
@@ -268,29 +256,3 @@ if __name__ == '__main__':
     # for region in vor.filtered_regions:
     #     vertices = vor.vertices[region, :]
     #     ax.plot(vertices[:, 0], vertices[:, 1], linewidth=.5, color='.5' )
-
-    # Overlay mode: yellow points over grayscale background
-    if args.overlay:
-        # Reload the original grayscale image (not normalized, not thresholded)
-        orig_img = Image.open(filename).convert('L')
-        orig_arr = np.array(orig_img)
-        height, width = orig_arr.shape
-        fig = plt.figure(figsize=(width/100, height/100), dpi=100, facecolor="white")
-        ax = fig.add_axes([0, 0, 1, 1], frameon=False)
-        ax.imshow(orig_arr, cmap='gray', vmin=0, vmax=255, origin='upper')
-        ax.set_xlim([0, width])
-        ax.set_xticks([])
-        ax.set_ylim([height, 0])
-        ax.set_yticks([])
-        # Scale points to image pixel coordinates
-        scale_x = width / density.shape[1]
-        scale_y = height / density.shape[0]
-        points_img = np.copy(points)
-        points_img[:, 0] *= scale_x
-        points_img[:, 1] *= scale_y
-        scatter = ax.scatter(points_img[:, 0], points_img[:, 1], s=1, facecolor="yellow", edgecolor="None")
-        sizes = (args.pointsize[0] + (args.pointsize[1]-args.pointsize[0]))
-        scatter.set_offsets(points_img)
-        scatter.set_sizes(np.full(points_img.shape[0], sizes))
-        plt.savefig(overlay_filename, dpi=100, bbox_inches='tight', pad_inches=0)
-        plt.close(fig)

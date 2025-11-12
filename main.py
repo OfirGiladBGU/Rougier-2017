@@ -14,48 +14,33 @@ def run_stippling_cmd():
     # CONFIGURATION - Edit these variables to customize the algorithm
     # =============================================================================
 
-    # INPUT IMAGE PATH
     # Change this to point to your image file
-    IMAGE_PATH = "data/original/plant4h.png"
-
-    # NUMBER OF STIPPLE POINTS
-    # More points = better detail but slower processing
+    FILENAME = "data/original/plant4h.png"
+    # Typical values: 25 (fast), 50 (good), 100 (high quality)
+    N_ITERATIONS = 50
     # Typical values: 5000 (fast), 20000 (good), 50000 (high quality)
     N_POINTS = 20000
-
-    # NUMBER OF ITERATIONS  
-    # More iterations = better convergence but slower processing
-    # Typical values: 25 (fast), 50 (good), 100 (high quality)
-    N_ITERATIONS = 25
-
-    # POINT SIZE (min, max)
     # Controls the size of dots in the final image
-    # Smaller values = finer detail
-    POINT_SIZE_MIN = 1.5
-    POINT_SIZE_MAX = 1.5
-
-    # FIGURE SIZE
+    POINT_SIZE_MIN = 0.5
+    POINT_SIZE_MAX = 2.5
     # Controls the output image size
-    FIGURE_SIZE = 6
-
-    # THRESHOLD
+    FIGSIZE = 6
+    # Overwrite existing results
+    FORCE = True    
     # Grey level threshold (0-255)
-    # Higher values = more selective about dark areas
     THRESHOLD = 255
+    # Save the stippled image to file
+    SAVE = True          
+    # Display final result in a window
+    DISPLAY = False
+    # Show progress during computation (slower)
+    INTERACTIVE = True     
 
-    # OUTPUT OPTIONS
-    SAVE_RESULT = True          # Save the stippled image to file
-    FORCE_RECOMPUTE = True      # Overwrite existing results
-    SHOW_INTERACTIVE = True     # Show progress during computation (slower)
-    SHOW_FINAL = False          # Display final result in a window
-
-    # IMAGE PROCESSING OPTIONS
-    INVERT_COLORS = False       # Invert image colors (black becomes white, white becomes black)
-                                # Useful for images where you want to stipple the light areas instead of dark areas
-
-    # OVERLAY MODE
-    OVERLAY_MODE = True         # Export overlay image with yellow points over grayscale background
-                                # Output: *-stipple-overlay.png
+    # NOTE: Extra
+    # Invert image colors (black becomes white, white becomes black) - Useful for images where you want to stipple the light areas instead of dark areas
+    # INVERT_COLORS = False
+    # Export overlay image with yellow points over grayscale background
+    # OVERLAY_MODE = True
 
     # =============================================================================
     # SCRIPT EXECUTION - Don't modify below unless you know what you're doing
@@ -64,13 +49,14 @@ def run_stippling_cmd():
     """Run the stippling algorithm with the configured parameters."""
     
     # Check if image exists
-    if not os.path.exists(IMAGE_PATH):
-        print(f"Error: Image file '{IMAGE_PATH}' not found!")
-        print("Please update the IMAGE_PATH variable in this script.")
+    if not os.path.exists(FILENAME):
+        print(f"Error: Image file '{FILENAME}' not found!")
+        print("Please update the FILENAME variable in this script.")
         return 1
     
     # Path to the stippler script
     stippler_path = os.path.join("code", "stippler.py")
+    # stippler_path = os.path.join("src", "stippler.py")
     
     if not os.path.exists(stippler_path):
         print(f"Error: Stippler script '{stippler_path}' not found!")
@@ -79,40 +65,38 @@ def run_stippling_cmd():
     
     # Build command
     cmd = [
-        sys.executable, stippler_path, IMAGE_PATH,
-        "--n_point", str(N_POINTS),
+        sys.executable, stippler_path, FILENAME,
         "--n_iter", str(N_ITERATIONS),
+        "--n_point", str(N_POINTS),
         "--pointsize", str(POINT_SIZE_MIN), str(POINT_SIZE_MAX),
-        "--figsize", str(FIGURE_SIZE),
+        "--figsize", str(FIGSIZE),
         "--threshold", str(THRESHOLD)
     ]
     
     # Add optional flags
-    if SAVE_RESULT:
-        cmd.append("--save")
-    if FORCE_RECOMPUTE:
+    if FORCE:
         cmd.append("--force")
-    if SHOW_INTERACTIVE:
-        cmd.append("--interactive")
-    if SHOW_FINAL:
+    if SAVE:
+        cmd.append("--save")
+    if DISPLAY:
         cmd.append("--display")
-    if INVERT_COLORS:
-        cmd.append("--invert")
-    if OVERLAY_MODE:
-        cmd.append("--overlay")
+    if INTERACTIVE:
+        cmd.append("--interactive")
+    # NOTE: Extra
+    # if INVERT_COLORS:
+    #     cmd.append("--invert")
+    # if OVERLAY_MODE:
+    #     cmd.append("--overlay")
     
     # Print configuration
     print("Weighted Voronoi Stippling")
     print("=" * 30)
-    print(f"Image: {IMAGE_PATH}")
+    print(f"Filename: {FILENAME}")
     print(f"Points: {N_POINTS}")
     print(f"Iterations: {N_ITERATIONS}")
-    print(f"Point size: {POINT_SIZE_MIN} - {POINT_SIZE_MAX}")
+    print(f"Point Size: ({POINT_SIZE_MIN}, {POINT_SIZE_MAX})")
+    print(f"Figure Size: {FIGSIZE}")
     print(f"Threshold: {THRESHOLD}")
-    print(f"Invert colors: {INVERT_COLORS}")
-    print(f"Save result: {SAVE_RESULT}")
-    print(f"Show progress: {SHOW_INTERACTIVE}")
-    print(f"Overlay mode: {OVERLAY_MODE}")
     print()
     print(f"Running: {' '.join(cmd)}")
     print()
