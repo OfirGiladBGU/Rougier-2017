@@ -34,7 +34,7 @@ def run_stippling_cmd():
     # Display final result in a window
     DISPLAY = False
     # Show progress during computation (slower)
-    INTERACTIVE = True     
+    INTERACTIVE = False     
 
     # NOTE: Extra
     # Invert image colors (black becomes white, white becomes black) - Useful for images where you want to stipple the light areas instead of dark areas
@@ -138,5 +138,5 @@ def run_stippling():
 
 
 if __name__ == "__main__":
-    # sys.exit(run_stippling_cmd())
+    # run_stippling_cmd()
     run_stippling()
