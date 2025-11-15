@@ -103,19 +103,16 @@ def main(args):
             print(f"GPU acceleration enabled: {torch.cuda.get_device_name(0)}")
     
     image = Image.open(filename).convert('L')  # Convert to grayscale
-    density = np.array(image, dtype=np.float32)
-
-    # Save original image size (for exact export later)
-    og_h, og_w = density.shape
+    og_density = np.array(image, dtype=np.float32)
 
     # Invert image colors if requested
     if args.invert:
-        density = 255.0 - density
+        og_density = 255.0 - og_density
 
     # We want (approximately) 500 pixels per voronoi region
-    zoom = (args.n_point * 500) / (density.shape[0]*density.shape[1])
+    zoom = (args.n_point * 500) / (og_density.shape[0]*og_density.shape[1])
     zoom = int(round(np.sqrt(zoom)))
-    density = scipy.ndimage.zoom(density, zoom, order=0)
+    density = scipy.ndimage.zoom(og_density, zoom, order=0)
     # Apply threshold onto image
     # Any color > threshold will be white
     density = np.minimum(density, args.threshold)
@@ -203,6 +200,8 @@ def main(args):
         # Export stipple points
         np.save(new_dat_filename, pts)
 
+        # Zoomed output #
+
         # Clip to image bounds
         x = np.clip(pts[:, 0], 0, W - 1)
         y = np.clip(pts[:, 1], 0, H - 1)
@@ -217,16 +216,33 @@ def main(args):
         mask = np.full((H, W), 255, dtype=np.uint8)
         mask[y_img, x] = 0  # 0 = black points
 
-        # Save as 1-bit PNG (Zoomed size)
+        # Save as 1-bit PNG
         Image.fromarray(mask, mode='L').convert('1').save(binary_png_filename)
 
-        # Save as 1-bit PNG (Unzoomed size)
-        # TODO: NOT WORKING PROPERLY
-        mask = scipy.ndimage.zoom(mask, 1/zoom, order=0)
-        Image.fromarray(mask, mode='L').convert('1').save(new_binary_png_filename)
+        # Unzoomed output #
 
-        # Plotting in original image size
-        fig = plt.figure(figsize=(og_w/100, og_h/100), dpi=100,
+        H, W = og_density.shape[0], og_density.shape[1]
+
+        # Scale points back to original image coordinates
+        scale_factor = 1.0 / zoom
+        pts_original = np.rint(points * scale_factor).astype(int)
+        
+        # Clip to original image bounds
+        x_orig = np.clip(pts_original[:, 0], 0, W - 1)
+        y_orig = np.clip(pts_original[:, 1], 0, H - 1)
+        # Convert to top-left origin for image coordinates
+        y_orig_img = (H - 1) - y_orig
+        
+        # Create binary mask at original size
+        mask_original = np.full((H, W), 255, dtype=np.uint8)
+        mask_original[y_orig_img, x_orig] = 0  # 0 = black points
+        
+        # Save as 1-bit PNG (Original size, binary)
+        Image.fromarray(mask_original, mode='L').convert('1').save(new_binary_png_filename)
+
+        # PDF and Image plot using matplotlib #
+
+        fig = plt.figure(figsize=(W/100, H/100), dpi=100,
                          facecolor="white")
         ax = fig.add_axes([0, 0, 1, 1], frameon=False)
         ax.set_xlim([xmin, xmax])
@@ -236,10 +252,10 @@ def main(args):
         scatter = ax.scatter(points[:, 0], points[:, 1], s=1, 
                              facecolor="k", edgecolor="None")
         Pi = points.astype(int)
-        X = np.maximum(np.minimum(Pi[:, 0], density.shape[1]-1), 0)
-        Y = np.maximum(np.minimum(Pi[:, 1], density.shape[0]-1), 0)
+        X = np.maximum(np.minimum(Pi[:, 0], og_density.shape[1]-1), 0)
+        Y = np.maximum(np.minimum(Pi[:, 1], og_density.shape[0]-1), 0)
         sizes = (args.pointsize[0] +
-                 (args.pointsize[1]-args.pointsize[0])*density[Y, X])
+                 (args.pointsize[1]-args.pointsize[0])*og_density[Y, X])
         scatter.set_offsets(points)
         scatter.set_sizes(sizes)
 

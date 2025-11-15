@@ -65,21 +65,20 @@ def run(args):
 
     # Export to SOURCE_PATH
     image.save(args.source_filename)
-    density = np.array(image, dtype=np.float32)
-
-    # Save original image size (for exact export later)
-    og_h, og_w = density.shape
+    og_density = np.array(image, dtype=np.float32)
 
     # Invert image colors if requested
     if args.invert:
-        density = 255.0 - density
+        og_density = 255.0 - og_density
 
     zoom = 1.0
     if args.zoom:
         # We want (approximately) 500 pixels per voronoi region
-        zoom = (args.n_point * 500) / (density.shape[0]*density.shape[1])
+        zoom = (args.n_point * 500) / (og_density.shape[0]*og_density.shape[1])
         zoom = int(round(np.sqrt(zoom)))
-        density = scipy.ndimage.zoom(density, zoom, order=0)
+        density = scipy.ndimage.zoom(og_density, zoom, order=0)
+    else:
+        density = og_density
 
     # Apply threshold onto image
     # Any color > threshold will be white
@@ -103,8 +102,41 @@ def run(args):
 
     # Export final result
     # Save binary PNG of stipple points (one-pixel dots)
-    H, W = density.shape[0], density.shape[1]
-    pts = np.rint(points).astype(int)
+    if args.zoom:
+        H, W = og_density.shape[0], og_density.shape[1]
+        # scale_factor = 1.0 / zoom
+        # pts = np.rint(points * scale_factor).astype(int)
+
+        # DEBUG #
+
+        fig = plt.figure(figsize=(W/100, H/100), dpi=100,
+                         facecolor="white")
+        ax = fig.add_axes([0, 0, 1, 1], frameon=False)
+        ax.set_xlim([xmin, xmax])
+        ax.set_xticks([])
+        ax.set_ylim([ymin, ymax])
+        ax.set_yticks([])
+        scatter = ax.scatter(points[:, 0], points[:, 1], s=1, 
+                             facecolor="k", edgecolor="None")
+        Pi = points.astype(int)
+        X = np.maximum(np.minimum(Pi[:, 0], og_density.shape[1]-1), 0)
+        Y = np.maximum(np.minimum(Pi[:, 1], og_density.shape[0]-1), 0)
+        sizes = (args.pointsize[0] +
+                 (args.pointsize[1]-args.pointsize[0])*og_density[Y, X])
+        scatter.set_offsets(points)
+        scatter.set_sizes(sizes)
+
+        # Save stipple points and stippled image
+        plt.savefig(args.target_filename)
+        plt.close(fig)
+        return
+    
+        # DEBUG #
+    
+    else:
+        H, W = density.shape[0], density.shape[1]
+        pts = np.rint(points).astype(int)
+
     # Clip to image bounds
     x = np.clip(pts[:, 0], 0, W - 1)
     y = np.clip(pts[:, 1], 0, H - 1)
@@ -118,32 +150,6 @@ def run(args):
     # Create binary mask: white background (255), black points (0)
     mask = np.full((H, W), 255, dtype=np.uint8)
     mask[y_img, x] = 0  # 0 = black points
-
-    if args.zoom:
-        # TODO: NOT WORKING PROPERLY
-        # mask = scipy.ndimage.zoom(mask, 1/zoom, order=0)
-
-        fig = plt.figure(figsize=(og_w/100, og_h/100), dpi=100,
-                         facecolor="white")
-        ax = fig.add_axes([0, 0, 1, 1], frameon=False)
-        ax.set_xlim([xmin, xmax])
-        ax.set_xticks([])
-        ax.set_ylim([ymin, ymax])
-        ax.set_yticks([])
-        scatter = ax.scatter(points[:, 0], points[:, 1], s=1, 
-                             facecolor="k", edgecolor="None")
-        Pi = points.astype(int)
-        X = np.maximum(np.minimum(Pi[:, 0], density.shape[1]-1), 0)
-        Y = np.maximum(np.minimum(Pi[:, 1], density.shape[0]-1), 0)
-        sizes = (args.pointsize[0] +
-                 (args.pointsize[1]-args.pointsize[0])*density[Y, X])
-        scatter.set_offsets(points)
-        scatter.set_sizes(sizes)
-
-        # Save stipple points and stippled image
-        plt.savefig(args.target_filename)
-        plt.close(fig)
-        return
 
     # Export to OUTPUT_PATH
     Image.fromarray(mask, mode='L').convert('1').save(args.target_filename)
@@ -180,7 +186,7 @@ def main():
     
     args.n_iter = 5
     args.n_point = 5000
-    # args.pointsize = (1, 1)
+    args.pointsize = (1, 1)
     # args.figsize = 6
     # args.force = True
     args.threshold = 255
