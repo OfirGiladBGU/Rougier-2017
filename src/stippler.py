@@ -102,7 +102,7 @@ def main(args):
             import torch
             print(f"GPU acceleration enabled: {torch.cuda.get_device_name(0)}")
     
-    image = Image.open(filename).convert('L')  # Convert to grayscale
+    image = Image.open(filename).convert(mode='L')  # Convert to grayscale
     og_density = np.array(image, dtype=np.float32)
 
     # Invert image colors if requested

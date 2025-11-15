@@ -136,7 +136,7 @@ if __name__ == '__main__':
 
     filename = args.filename
     # density = scipy.misc.imread(filename, flatten=True, mode='L')
-    image = Image.open(filename).convert('L')  # Load image using PIL instead of deprecated scipy.misc.imread
+    image = Image.open(filename).convert(mode='L')  # Load image using PIL instead of deprecated scipy.misc.imread
     density = np.array(image, dtype=float)
 
     # We want (approximately) 500 pixels per voronoi region

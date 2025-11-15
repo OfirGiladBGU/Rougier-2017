@@ -60,8 +60,11 @@ def initialization(n, D):
 
 def run(args):
     filename = args.filename
-    image = Image.open(filename).convert('L')  # Convert to grayscale
-    image = image.resize(args.image_size, Image.LANCZOS)
+    image = Image.open(filename).convert(mode='L')  # Convert to grayscale
+
+    # Resize image if requested
+    if args.image_size is not None and image.size != args.image_size:
+        image = image.resize(size=args.image_size, resample=Image.LANCZOS)
 
     # Export to SOURCE_PATH
     image.save(args.source_filename)
@@ -104,34 +107,32 @@ def run(args):
     # Save binary PNG of stipple points (one-pixel dots)
     if args.zoom:
         H, W = og_density.shape[0], og_density.shape[1]
-        # scale_factor = 1.0 / zoom
-        # pts = np.rint(points * scale_factor).astype(int)
+        scale_factor = 1.0 / zoom
+        pts = np.rint(points * scale_factor).astype(int)
 
-        # DEBUG #
+        # # DEBUG #
+        # fig = plt.figure(figsize=(W/100, H/100), dpi=100,
+        #                  facecolor="white")
+        # ax = fig.add_axes([0, 0, 1, 1], frameon=False)
+        # ax.set_xlim([xmin, xmax])
+        # ax.set_xticks([])
+        # ax.set_ylim([ymin, ymax])
+        # ax.set_yticks([])
+        # scatter = ax.scatter(points[:, 0], points[:, 1], s=1, 
+        #                      facecolor="k", edgecolor="None")
+        # Pi = points.astype(int)
+        # X = np.maximum(np.minimum(Pi[:, 0], og_density.shape[1]-1), 0)
+        # Y = np.maximum(np.minimum(Pi[:, 1], og_density.shape[0]-1), 0)
+        # sizes = (args.pointsize[0] +
+        #          (args.pointsize[1]-args.pointsize[0])*og_density[Y, X])
+        # scatter.set_offsets(points)
+        # scatter.set_sizes(sizes)
 
-        fig = plt.figure(figsize=(W/100, H/100), dpi=100,
-                         facecolor="white")
-        ax = fig.add_axes([0, 0, 1, 1], frameon=False)
-        ax.set_xlim([xmin, xmax])
-        ax.set_xticks([])
-        ax.set_ylim([ymin, ymax])
-        ax.set_yticks([])
-        scatter = ax.scatter(points[:, 0], points[:, 1], s=1, 
-                             facecolor="k", edgecolor="None")
-        Pi = points.astype(int)
-        X = np.maximum(np.minimum(Pi[:, 0], og_density.shape[1]-1), 0)
-        Y = np.maximum(np.minimum(Pi[:, 1], og_density.shape[0]-1), 0)
-        sizes = (args.pointsize[0] +
-                 (args.pointsize[1]-args.pointsize[0])*og_density[Y, X])
-        scatter.set_offsets(points)
-        scatter.set_sizes(sizes)
-
-        # Save stipple points and stippled image
-        plt.savefig(args.target_filename)
-        plt.close(fig)
-        return
-    
-        # DEBUG #
+        # # Save stipple points and stippled image
+        # plt.savefig(args.target_filename)
+        # plt.close(fig)
+        # return
+        # # DEBUG #
     
     else:
         H, W = density.shape[0], density.shape[1]
@@ -196,8 +197,8 @@ def main():
     args.image_size = (512, 512)  # Width, Height
     args.accelerator = "cuda"  # 'none', 'numpy', 'numba', 'cuda'
     args.invert = False
-    # args.overlay = False
     args.zoom = True
+    # args.overlay = False
 
     image_files = sorted([f for f in os.listdir(IMAGES_PATH) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
 
