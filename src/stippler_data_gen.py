@@ -8,15 +8,17 @@
 #   Symposium on Non-Photorealistic Animation and Rendering (NPAR), 2002
 # -----------------------------------------------------------------------------
 import argparse
-import sys
+import tqdm
 import os
+import scipy.ndimage
+import numpy as np
+from PIL import Image
+import matplotlib.pyplot as plt
+import sys
 DIR_PATH = os.path.dirname(__file__)
 sys.path.append(DIR_PATH)
 
 import voronoi
-import numpy as np
-from PIL import Image
-from tqdm import tqdm
 
 
 def normalize(D):
@@ -63,12 +65,21 @@ def run(args):
 
     # Export to SOURCE_PATH
     image.save(args.source_filename)
-
     density = np.array(image, dtype=np.float32)
-    
+
+    # Save original image size (for exact export later)
+    og_h, og_w = density.shape
+
     # Invert image colors if requested
     if args.invert:
         density = 255.0 - density
+
+    zoom = 1.0
+    if args.zoom:
+        # We want (approximately) 500 pixels per voronoi region
+        zoom = (args.n_point * 500) / (density.shape[0]*density.shape[1])
+        zoom = int(round(np.sqrt(zoom)))
+        density = scipy.ndimage.zoom(density, zoom, order=0)
 
     # Apply threshold onto image
     # Any color > threshold will be white
@@ -107,6 +118,32 @@ def run(args):
     # Create binary mask: white background (255), black points (0)
     mask = np.full((H, W), 255, dtype=np.uint8)
     mask[y_img, x] = 0  # 0 = black points
+
+    if args.zoom:
+        # TODO: NOT WORKING PROPERLY
+        # mask = scipy.ndimage.zoom(mask, 1/zoom, order=0)
+
+        fig = plt.figure(figsize=(og_w/100, og_h/100), dpi=100,
+                         facecolor="white")
+        ax = fig.add_axes([0, 0, 1, 1], frameon=False)
+        ax.set_xlim([xmin, xmax])
+        ax.set_xticks([])
+        ax.set_ylim([ymin, ymax])
+        ax.set_yticks([])
+        scatter = ax.scatter(points[:, 0], points[:, 1], s=1, 
+                             facecolor="k", edgecolor="None")
+        Pi = points.astype(int)
+        X = np.maximum(np.minimum(Pi[:, 0], density.shape[1]-1), 0)
+        Y = np.maximum(np.minimum(Pi[:, 1], density.shape[0]-1), 0)
+        sizes = (args.pointsize[0] +
+                 (args.pointsize[1]-args.pointsize[0])*density[Y, X])
+        scatter.set_offsets(points)
+        scatter.set_sizes(sizes)
+
+        # Save stipple points and stippled image
+        plt.savefig(args.target_filename)
+        plt.close(fig)
+        return
 
     # Export to OUTPUT_PATH
     Image.fromarray(mask, mode='L').convert('1').save(args.target_filename)
@@ -154,13 +191,14 @@ def main():
     args.accelerator = "cuda"  # 'none', 'numpy', 'numba', 'cuda'
     args.invert = False
     # args.overlay = False
+    args.zoom = True
 
     image_files = sorted([f for f in os.listdir(IMAGES_PATH) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
 
     # Generate images
     if N == -1:
         N = len(image_files)
-    for i in tqdm(range(N)):
+    for i in tqdm.tqdm(range(N)):
         args.filename = os.path.join(IMAGES_PATH, image_files[i])
         args.source_filename = os.path.join(SOURCE_PATH, image_files[i])
         args.target_filename = os.path.join(TARGET_PATH, image_files[i])
@@ -168,7 +206,7 @@ def main():
 
     # Export json
     json_data = []
-    for i in tqdm(range(N)):
+    for i in tqdm.tqdm(range(N)):
         json_data.append({
             "source": f"source/{image_files[i]}",
             "target": f"target/{image_files[i]}",

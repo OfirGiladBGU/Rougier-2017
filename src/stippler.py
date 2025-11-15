@@ -42,6 +42,7 @@
 import tqdm
 import voronoi
 import os.path
+import scipy.ndimage
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -103,11 +104,18 @@ def main(args):
     
     image = Image.open(filename).convert('L')  # Convert to grayscale
     density = np.array(image, dtype=np.float32)
-    
+
+    # Save original image size (for exact export later)
+    og_h, og_w = density.shape
+
     # Invert image colors if requested
     if args.invert:
         density = 255.0 - density
 
+    # We want (approximately) 500 pixels per voronoi region
+    zoom = (args.n_point * 500) / (density.shape[0]*density.shape[1])
+    zoom = int(round(np.sqrt(zoom)))
+    density = scipy.ndimage.zoom(density, zoom, order=0)
     # Apply threshold onto image
     # Any color > threshold will be white
     density = np.minimum(density, args.threshold)
@@ -119,10 +127,18 @@ def main(args):
 
     dirname = os.path.dirname(filename)
     basename = (os.path.basename(filename).split('.'))[0]
+    # ORIGIAL OUTPUT FILES
     pdf_filename = os.path.join(dirname, basename + "-stipple.pdf")
     png_filename = os.path.join(dirname, basename + "-stipple.png")
     dat_filename = os.path.join(dirname, basename + "-stipple.npy")
-    overlay_filename = os.path.join(dirname, basename + "-stipple-overlay.png")
+
+    # NEW OUTPUT FILES (Rescaled)
+    new_pdf_filename = os.path.join(dirname, basename + "-new-stipple.pdf")
+    new_png_filename = os.path.join(dirname, basename + "-new-stipple.png")
+    new_dat_filename = os.path.join(dirname, basename + "-new-stipple.npy")
+    binary_png_filename = os.path.join(dirname, basename + "stipple-binary.png")
+    new_binary_png_filename = os.path.join(dirname, basename + "-new-stipple-binary.png")
+    # overlay_filename = os.path.join(dirname, basename + "-stipple-overlay.png")
 
     # Initialization
     if not os.path.exists(dat_filename) or args.force:
@@ -138,7 +154,7 @@ def main(args):
     print("Output file (PDF): %s " % pdf_filename)
     print("            (PNG): %s " % png_filename)
     print("            (DAT): %s " % dat_filename)
-    print("Overlay     (PNG): %s " % overlay_filename)
+    # print("Overlay     (PNG): %s " % overlay_filename)
 
         
     xmin, xmax = 0, density.shape[1]
@@ -152,30 +168,9 @@ def main(args):
 
     # Export final result
     if args.save:
-        # Save raw points
-        np.save(dat_filename, points)
-
-        # Save binary PNG of stipple points (one-pixel dots)
-        H, W = density.shape[0], density.shape[1]
-        pts = np.rint(points).astype(int)
-        # Clip to image bounds
-        x = np.clip(pts[:, 0], 0, W - 1)
-        y = np.clip(pts[:, 1], 0, H - 1)
-        # Convert to top-left origin for image coordinates
-        y_img = (H - 1) - y
-
-        # # Create binary mask: white background (0), black points (255)
-        # mask = np.zeros((H, W), dtype=np.uint8)
-        # mask[y_img, x] = 255  # 255 = white points
-
-        # Create binary mask: white background (255), black points (0)
-        mask = np.full((H, W), 255, dtype=np.uint8)
-        mask[y_img, x] = 0  # 0 = black points
-
-        # Save as 1-bit PNG (black points on white background)
-        Image.fromarray(mask, mode='L').convert('1').save(png_filename)
-        
-        # Save plotted figure in PDF
+        ###############
+        # [OG] Export #
+        ###############
         fig = plt.figure(figsize=(args.figsize, args.figsize/ratio),
                          facecolor="white")
         ax = fig.add_axes([0, 0, 1, 1], frameon=False)
@@ -193,8 +188,65 @@ def main(args):
         scatter.set_offsets(points)
         scatter.set_sizes(sizes)
 
-        # Save plotted figure (PDF) if requested
+        # Save stipple points and stippled image
+        np.save(dat_filename, points)
         plt.savefig(pdf_filename)
+        plt.savefig(png_filename)
+
+
+        ################
+        # [NEW] Export #
+        ################
+        H, W = density.shape[0], density.shape[1]
+        pts = np.rint(points).astype(int)
+
+        # Export stipple points
+        np.save(new_dat_filename, pts)
+
+        # Clip to image bounds
+        x = np.clip(pts[:, 0], 0, W - 1)
+        y = np.clip(pts[:, 1], 0, H - 1)
+        # Convert to top-left origin for image coordinates
+        y_img = (H - 1) - y
+
+        # # Create binary mask: white background (0), black points (255)
+        # mask = np.zeros((H, W), dtype=np.uint8)
+        # mask[y_img, x] = 255  # 255 = white points
+
+        # Create binary mask: white background (255), black points (0)
+        mask = np.full((H, W), 255, dtype=np.uint8)
+        mask[y_img, x] = 0  # 0 = black points
+
+        # Save as 1-bit PNG (Zoomed size)
+        Image.fromarray(mask, mode='L').convert('1').save(binary_png_filename)
+
+        # Save as 1-bit PNG (Unzoomed size)
+        # TODO: NOT WORKING PROPERLY
+        mask = scipy.ndimage.zoom(mask, 1/zoom, order=0)
+        Image.fromarray(mask, mode='L').convert('1').save(new_binary_png_filename)
+
+        # Plotting in original image size
+        fig = plt.figure(figsize=(og_w/100, og_h/100), dpi=100,
+                         facecolor="white")
+        ax = fig.add_axes([0, 0, 1, 1], frameon=False)
+        ax.set_xlim([xmin, xmax])
+        ax.set_xticks([])
+        ax.set_ylim([ymin, ymax])
+        ax.set_yticks([])
+        scatter = ax.scatter(points[:, 0], points[:, 1], s=1, 
+                             facecolor="k", edgecolor="None")
+        Pi = points.astype(int)
+        X = np.maximum(np.minimum(Pi[:, 0], density.shape[1]-1), 0)
+        Y = np.maximum(np.minimum(Pi[:, 1], density.shape[0]-1), 0)
+        sizes = (args.pointsize[0] +
+                 (args.pointsize[1]-args.pointsize[0])*density[Y, X])
+        scatter.set_offsets(points)
+        scatter.set_sizes(sizes)
+
+        # Save stipple points and stippled image
+        plt.savefig(new_pdf_filename)
+        plt.savefig(new_png_filename)
+
 
     # Plot voronoi regions if you want
     # for region in vor.filtered_regions:
