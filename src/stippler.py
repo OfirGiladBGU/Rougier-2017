@@ -133,7 +133,7 @@ def main(args):
     new_pdf_filename = os.path.join(dirname, basename + "-new-stipple.pdf")
     new_png_filename = os.path.join(dirname, basename + "-new-stipple.png")
     new_dat_filename = os.path.join(dirname, basename + "-new-stipple.npy")
-    binary_png_filename = os.path.join(dirname, basename + "stipple-binary.png")
+    binary_png_filename = os.path.join(dirname, basename + "-stipple-binary.png")
     new_binary_png_filename = os.path.join(dirname, basename + "-new-stipple-binary.png")
     # overlay_filename = os.path.join(dirname, basename + "-stipple-overlay.png")
 
