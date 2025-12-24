@@ -14,6 +14,7 @@ from PIL import Image
 from tqdm import tqdm
 
 
+ROOT_PATH = Path(__file__).parent.resolve()
 VALID_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 
 
@@ -63,8 +64,8 @@ def main() -> None:
     Batch process images in a folder to whiten backgrounds using a smart-background heuristic.
     """
     # Edit these three lines as needed.
-    input_dir = Path("fill50k-gs/original-rgb")
-    output_dir = Path("fill50k-gs/original")
+    input_dir = ROOT_PATH / "fill50k-gs/original-rgb"
+    output_dir = ROOT_PATH / "fill50k-gs/original"
     tolerance = 0  # 0 = exact match; increase to allow variation.
 
     if not input_dir.exists():
