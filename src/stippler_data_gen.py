@@ -77,8 +77,9 @@ def run(args):
     zoom = 1.0
     if args.zoom:
         # We want (approximately) 500 pixels per voronoi region
-        zoom = (args.n_point * 500) / (og_density.shape[0]*og_density.shape[1])
-        zoom = int(round(np.sqrt(zoom)))
+        zoom = (args.n_point * 500) / (og_density.shape[0] * og_density.shape[1])
+        # Avoid zoom=0 for large images, which would create an empty density array.
+        zoom = max(1, int(round(np.sqrt(zoom))))
         density = scipy.ndimage.zoom(og_density, zoom, order=0)
     else:
         density = og_density
