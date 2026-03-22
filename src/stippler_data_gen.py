@@ -200,7 +200,12 @@ def main():
     args.zoom = True
     # args.overlay = False
 
-    image_files = sorted([f for f in os.listdir(IMAGES_PATH) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
+    image_files = sorted([
+        os.path.relpath(os.path.join(root, f), IMAGES_PATH)
+        for root, _, files in os.walk(IMAGES_PATH)
+        for f in files
+        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))
+    ])
 
     # Generate images
     if N == -1:
@@ -209,6 +214,8 @@ def main():
         args.filename = os.path.join(IMAGES_PATH, image_files[i])
         args.source_filename = os.path.join(SOURCE_PATH, image_files[i])
         args.target_filename = os.path.join(TARGET_PATH, image_files[i])
+        os.makedirs(os.path.dirname(args.source_filename), exist_ok=True)
+        os.makedirs(os.path.dirname(args.target_filename), exist_ok=True)
         run(args)
 
     # Export json
