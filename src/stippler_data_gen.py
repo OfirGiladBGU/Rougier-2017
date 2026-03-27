@@ -194,16 +194,16 @@ def main():
     parser.add_argument('--n_point', type=int, default=n_point)
     parser.add_argument('--pointsize', type=int, nargs=2, default=pointsize)
     # parser.add_argument('--figsize', type=int, default=figsize)
-    # parser.add_argument('--force', type=bool, default=force)
+    # parser.add_argument('--force', action=argparse.BooleanOptionalAction, default=force)
     parser.add_argument('--threshold', type=int, default=threshold)
-    # parser.add_argument('--display',type=bool, default=display)
-    # parser.add_argument('--interactive', type=bool, default=interactive)
+    # parser.add_argument('--display', action=argparse.BooleanOptionalAction, default=display)
+    # parser.add_argument('--interactive', action=argparse.BooleanOptionalAction, default=interactive)
     parser.add_argument('--image_size', type=int, nargs=2, default=image_size)
     parser.add_argument('--accelerator', type=str, default=accelerator)
-    parser.add_argument('--invert_image', type=bool, default=invert_image)
-    parser.add_argument('--invert_density', type=bool, default=invert_density)
-    parser.add_argument('--zoom', type=bool, default=zoom)
-    # parser.add_argument('--overlay', type=bool, default=overlay)
+    parser.add_argument('--invert_image', action=argparse.BooleanOptionalAction, default=invert_image)
+    parser.add_argument('--invert_density', action=argparse.BooleanOptionalAction, default=invert_density)
+    parser.add_argument('--zoom', action=argparse.BooleanOptionalAction, default=zoom)
+    # parser.add_argument('--overlay', action=argparse.BooleanOptionalAction, default=overlay)
     args = parser.parse_args()
 
 
@@ -231,11 +231,14 @@ def main():
         for f in files
         if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif'))
     ])
+    if not image_files:
+        raise FileNotFoundError(f"No images found under: {IMAGES_PATH}")
 
 
     # NOTE: Generate images
     if args.n == -1:
         args.n = len(image_files)
+    args.n = min(args.n, len(image_files))
     for i in tqdm.tqdm(range(args.n)):
         # if i < 1000:
         #     continue
