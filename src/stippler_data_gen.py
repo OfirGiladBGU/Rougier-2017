@@ -66,12 +66,15 @@ def run(args):
     if args.image_size is not None and image.size != args.image_size:
         image = image.resize(size=args.image_size, resample=Image.LANCZOS)
 
+    if args.invert_image:
+        image = Image.fromarray(255 - np.array(image))
+
     # Export to SOURCE_PATH
     image.save(args.source_filename)
     og_density = np.array(image, dtype=np.float32)
 
     # Invert image colors if requested
-    if args.invert:
+    if args.invert_density:
         og_density = 255.0 - og_density
 
     zoom = 1.0
@@ -162,19 +165,55 @@ def main():
     ############################
     # CONFIGURATION PARAMETERS #
     ############################
-    ROOT_PATH = ""
-    DATA_FOLDER = "data"
+    data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/data_grads_v3"
+    # n = 10
+    n = -1  # Set to -1 to process all images in the folder
+    
+    n_iter = 5
+    n_point = 1024
+    pointsize = (1, 1)
+    # figsize = 6
+    # force = True
+    threshold = 255
+    # display = False
+    # interactive = False
 
-    SOURCE_PATH = os.path.join(ROOT_PATH, DATA_FOLDER, "source")
-    TARGET_PATH = os.path.join(ROOT_PATH, DATA_FOLDER, "target")
-    JSON_PATH = os.path.join(ROOT_PATH, DATA_FOLDER, "prompt.json")
-    IMAGES_PATH = os.path.join(ROOT_PATH, DATA_FOLDER, "original")
-    # OUTPUT_PATH = os.path.join(ROOT_PATH, "output")
+    image_size = (512, 512)  # Width, Height
+    accelerator = "numba"  # 'none', 'numpy', 'numba', 'cuda'
+    invert_image = False
+    invert_density = False
+    zoom = True
+    # overlay = False
+
+
+    # NOTE: Define Parser
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_path', type=str, default=data_path)
+    parser.add_argument('--n', type=int, default=n)
+    parser.add_argument('--n_iter', type=int, default=n_iter)
+    parser.add_argument('--n_point', type=int, default=n_point)
+    parser.add_argument('--pointsize', type=int, nargs=2, default=pointsize)
+    # parser.add_argument('--figsize', type=int, default=figsize)
+    # parser.add_argument('--force', type=bool, default=force)
+    parser.add_argument('--threshold', type=int, default=threshold)
+    # parser.add_argument('--display',type=bool, default=display)
+    # parser.add_argument('--interactive', type=bool, default=interactive)
+    parser.add_argument('--image_size', type=int, nargs=2, default=image_size)
+    parser.add_argument('--accelerator', type=str, default=accelerator)
+    parser.add_argument('--invert_image', type=bool, default=invert_image)
+    parser.add_argument('--invert_density', type=bool, default=invert_density)
+    parser.add_argument('--zoom', type=bool, default=zoom)
+    # parser.add_argument('--overlay', type=bool, default=overlay)
+    args = parser.parse_args()
+
+
+    # NOTE: Build paths
+    IMAGES_PATH = os.path.join(args.data_path, "original")
+    SOURCE_PATH = os.path.join(args.data_path, "source")
+    TARGET_PATH = os.path.join(args.data_path, "target")
+    JSON_PATH = os.path.join(args.data_path, "prompt.json")
+    # OUTPUT_PATH = os.path.join(args.data_path, "output")
     # os.makedirs(OUTPUT_PATH, exist_ok=True)
-
-    # N = 10
-    N = -1  # Set to -1 to process all images in the folder
-
     dataset_paths = dict(
         source_path=SOURCE_PATH,
         target_path=TARGET_PATH,
@@ -184,34 +223,24 @@ def main():
     os.makedirs(dataset_paths['source_path'], exist_ok=True)
     os.makedirs(dataset_paths['target_path'], exist_ok=True)
 
-    args = argparse.ArgumentParser().parse_args()
-    
-    args.n_iter = 5
-    args.n_point = 5000
-    args.pointsize = (1, 1)
-    # args.figsize = 6
-    # args.force = True
-    args.threshold = 255
-    # args.display = False
-    # args.interactive = False
 
-    args.image_size = (512, 512)  # Width, Height
-    args.accelerator = "cuda"  # 'none', 'numpy', 'numba', 'cuda'
-    args.invert = False
-    args.zoom = True
-    # args.overlay = False
-
+    # NOTE: Aggregate image files
     image_files = sorted([
         os.path.relpath(os.path.join(root, f), IMAGES_PATH)
         for root, _, files in os.walk(IMAGES_PATH)
         for f in files
-        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))
+        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif'))
     ])
 
-    # Generate images
-    if N == -1:
-        N = len(image_files)
-    for i in tqdm.tqdm(range(N)):
+
+    # NOTE: Generate images
+    if args.n == -1:
+        args.n = len(image_files)
+    for i in tqdm.tqdm(range(args.n)):
+        # if i < 1000:
+        #     continue
+        # if i > 13001:
+        #     break
         args.filename = os.path.join(IMAGES_PATH, image_files[i])
         args.source_filename = os.path.join(SOURCE_PATH, image_files[i])
         args.target_filename = os.path.join(TARGET_PATH, image_files[i])
@@ -219,9 +248,10 @@ def main():
         os.makedirs(os.path.dirname(args.target_filename), exist_ok=True)
         run(args)
 
-    # Export json
+
+    # NOTE: Export json
     json_data = []
-    for i in tqdm.tqdm(range(N)):
+    for i in tqdm.tqdm(range(args.n)):
         json_data.append({
             "source": f"source/{image_files[i]}",
             "target": f"target/{image_files[i]}",
