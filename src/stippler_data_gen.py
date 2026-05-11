@@ -10,6 +10,7 @@
 import argparse
 import tqdm
 import os
+import time
 import scipy.ndimage
 import numpy as np
 from PIL import Image
@@ -165,12 +166,37 @@ def main():
     ############################
     # CONFIGURATION PARAMETERS #
     ############################
-    data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/data_grads_v3"
+
+    # ICONS-50 - dataset
+    # data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/icons-50_512"
+    # n_point = 1024
+    # n_iter = 5
+    # image_size = (512, 512)
+
+    # Quadratic Sample
+    data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/results/quadratic_V2"
+    n_point = 1024
+    n_iter = 10
+    image_size = None
+
+    # Mokey Sample
+    # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/results/monkey"
+    # n_point = 1024
+    # n_iter = 10
+    # image_size = None
+
+    # Plant Sample
+    # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/results/plant2"
+    # n_point = 1024
+    # n_iter = 10
+    # image_size = None
+
+
     # n = 10
     n = -1  # Set to -1 to process all images in the folder
     
-    n_iter = 5
-    n_point = 1024
+    # n_iter = 5
+    # n_point = 1024
     pointsize = (1, 1)
     # figsize = 6
     # force = True
@@ -178,7 +204,8 @@ def main():
     # display = False
     # interactive = False
 
-    image_size = (512, 512)  # Width, Height
+    # image_size = (512, 512)  # Width, Height
+    # image_size = None  # Keep original size
     accelerator = "numba"  # 'none', 'numpy', 'numba', 'cuda'
     invert_image = False
     invert_density = False
@@ -203,6 +230,8 @@ def main():
     parser.add_argument('--invert_image', action=argparse.BooleanOptionalAction, default=invert_image)
     parser.add_argument('--invert_density', action=argparse.BooleanOptionalAction, default=invert_density)
     parser.add_argument('--zoom', action=argparse.BooleanOptionalAction, default=zoom)
+    parser.add_argument('--track_time', action=argparse.BooleanOptionalAction, default=False,
+                        help="Enable time tracking; saves elapsed time per image to 'timestamps/' subfolder")
     # parser.add_argument('--overlay', action=argparse.BooleanOptionalAction, default=overlay)
     args = parser.parse_args()
 
@@ -212,6 +241,7 @@ def main():
     SOURCE_PATH = os.path.join(args.data_path, "source")
     TARGET_PATH = os.path.join(args.data_path, "target")
     JSON_PATH = os.path.join(args.data_path, "prompt.json")
+    TIMESTAMPS_PATH = os.path.join(args.data_path, "timestamps") if args.track_time else None
     # OUTPUT_PATH = os.path.join(args.data_path, "output")
     # os.makedirs(OUTPUT_PATH, exist_ok=True)
     dataset_paths = dict(
@@ -222,6 +252,8 @@ def main():
     os.makedirs(os.path.dirname(dataset_paths['json_path']), exist_ok=True)
     os.makedirs(dataset_paths['source_path'], exist_ok=True)
     os.makedirs(dataset_paths['target_path'], exist_ok=True)
+    if args.track_time:
+        os.makedirs(TIMESTAMPS_PATH, exist_ok=True)
 
 
     # NOTE: Aggregate image files
@@ -249,7 +281,22 @@ def main():
         args.target_filename = os.path.join(TARGET_PATH, image_files[i])
         os.makedirs(os.path.dirname(args.source_filename), exist_ok=True)
         os.makedirs(os.path.dirname(args.target_filename), exist_ok=True)
+        
+        # Time tracking
+        if args.track_time:
+            start_time = time.time()
+        
         run(args)
+        
+        # Save timing info if tracking is enabled
+        if args.track_time:
+            elapsed = time.time() - start_time
+            # Build the timestamp file path (same relative structure)
+            rel_path = image_files[i]
+            timestamp_file_path = os.path.join(TIMESTAMPS_PATH, os.path.splitext(rel_path)[0] + ".txt")
+            os.makedirs(os.path.dirname(timestamp_file_path), exist_ok=True)
+            with open(timestamp_file_path, 'w') as f:
+                f.write(f"{elapsed:.6f}\n")
 
 
     # NOTE: Export json
