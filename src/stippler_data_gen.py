@@ -174,12 +174,12 @@ def main():
     # image_size = (512, 512)
 
     # Quadratic Sample
-    data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/results/quadratic_V2"
-    n_point = 1024
-    n_iter = 10
-    image_size = None
+    # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/results/quadratic_V2"
+    # n_point = 1024
+    # n_iter = 10
+    # image_size = None
 
-    # Mokey Sample
+    # Monkey Sample
     # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/results/monkey"
     # n_point = 1024
     # n_iter = 10
@@ -190,6 +190,21 @@ def main():
     # n_point = 1024
     # n_iter = 10
     # image_size = None
+
+
+    # Faces Set Sample
+    # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/faces_results_compare"
+    # n_point = 1024
+    # n_iter = 10
+    # image_size = (512, 512)
+
+    # ICONS - TIMES
+    data_path = "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/icons_results_runtimes"
+    # n_point = 576
+    # n_point = 1024
+    n_point = 2304
+    n_iter = 10
+    image_size = (512, 512)
 
 
     # n = 10
@@ -211,6 +226,7 @@ def main():
     invert_density = False
     zoom = True
     # overlay = False
+    track_time = True
 
 
     # NOTE: Define Parser
@@ -230,7 +246,7 @@ def main():
     parser.add_argument('--invert_image', action=argparse.BooleanOptionalAction, default=invert_image)
     parser.add_argument('--invert_density', action=argparse.BooleanOptionalAction, default=invert_density)
     parser.add_argument('--zoom', action=argparse.BooleanOptionalAction, default=zoom)
-    parser.add_argument('--track_time', action=argparse.BooleanOptionalAction, default=False,
+    parser.add_argument('--track_time', action=argparse.BooleanOptionalAction, default=track_time,
                         help="Enable time tracking; saves elapsed time per image to 'timestamps/' subfolder")
     # parser.add_argument('--overlay', action=argparse.BooleanOptionalAction, default=overlay)
     args = parser.parse_args()
