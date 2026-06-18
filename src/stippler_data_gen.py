@@ -198,11 +198,29 @@ def main():
     # n_iter = 10
     # image_size = (512, 512)
 
-    # ICONS - TIMES
-    data_path = "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/icons_results_runtimes"
+    # ICONS - TIMES - V1
+    # data_path = "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/icons_results_runtimes"
     # n_point = 576
     # n_point = 1024
-    n_point = 2304
+    # n_point = 2304
+    # n_iter = 10
+    # image_size = (512, 512)
+
+    # ICONS - TIMES - V2
+    data_path = "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/icons_results_runtimes"
+    n_point = 256  # 16
+    # n_points = 576  # 24 
+    # n_points = 1024  # 32
+    # n_points = 1600  # 40
+    # n_points = 2304  # 48
+    # n_points = 3136  # 56
+    # n_points = 4096  # 64
+    # n_points = 5184  # 72
+    # n_points = 6400  # 80
+    # n_points = 7744  # 88
+    # n_points = 9216  # 96
+    # n_points = 10816  # 104
+    # n_points = 12544  # 112
     n_iter = 10
     image_size = (512, 512)
 
