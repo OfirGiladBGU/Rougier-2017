@@ -276,8 +276,6 @@ def main():
     TARGET_PATH = os.path.join(args.data_path, "target")
     JSON_PATH = os.path.join(args.data_path, "prompt.json")
     TIMESTAMPS_PATH = os.path.join(args.data_path, "timestamps") if args.track_time else None
-    # OUTPUT_PATH = os.path.join(args.data_path, "output")
-    # os.makedirs(OUTPUT_PATH, exist_ok=True)
     dataset_paths = dict(
         source_path=SOURCE_PATH,
         target_path=TARGET_PATH,
@@ -306,10 +304,6 @@ def main():
         args.n = len(image_files)
     args.n = min(args.n, len(image_files))
     for i in tqdm.tqdm(range(args.n)):
-        # if i < 1000:
-        #     continue
-        # if i > 13001:
-        #     break
         args.filename = os.path.join(IMAGES_PATH, image_files[i])
         args.source_filename = os.path.join(SOURCE_PATH, image_files[i])
         args.target_filename = os.path.join(TARGET_PATH, image_files[i])
