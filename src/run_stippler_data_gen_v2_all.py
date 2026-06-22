@@ -1,8 +1,11 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Run stippler_data_gen.py for all ICONS-TIMES-V2 n_point values.
 
 After each run, the output subfolders (target, timestamps) are renamed
 with a _WVS_<N_POINT> postfix. original/ and source/ are left untouched.
+
+All run parameters are passed explicitly on the command line so this driver
+does not depend on the defaults inside stippler_data_gen.py.
 """
 
 import subprocess
@@ -17,6 +20,19 @@ DATA_PATH = Path(
     "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion"
     "/experiments/outputs/icons_results_runtimes"
 )
+
+# Full ICONS - TIMES - V2 parameter set (passed explicitly; do not assume the
+# underlying script defaults).
+N = -1                  # -1 == process all images
+N_ITER = 10
+IMAGE_SIZE = (512, 512)
+POINTSIZE = (1, 1)
+THRESHOLD = 255
+ACCELERATOR = "numba"
+INVERT_IMAGE = False
+INVERT_DENSITY = False
+ZOOM = True
+TRACK_TIME = True
 
 # ICONS - TIMES - V2  (actual point counts; comments show NxN equivalent)
 N_POINTS = [
@@ -54,7 +70,21 @@ def main():
         print(f"  N_POINT = {n_point}")
         print(f"{'='*70}\n")
 
-        cmd = [sys.executable, str(SCRIPT_PATH), "--n_point", str(n_point)]
+        cmd = [
+            sys.executable, str(SCRIPT_PATH),
+            "--data_path", str(DATA_PATH),
+            "--n", str(N),
+            "--n_point", str(n_point),
+            "--n_iter", str(N_ITER),
+            "--image_size", str(IMAGE_SIZE[0]), str(IMAGE_SIZE[1]),
+            "--pointsize", str(POINTSIZE[0]), str(POINTSIZE[1]),
+            "--threshold", str(THRESHOLD),
+            "--accelerator", ACCELERATOR,
+            "--invert_image" if INVERT_IMAGE else "--no-invert_image",
+            "--invert_density" if INVERT_DENSITY else "--no-invert_density",
+            "--zoom" if ZOOM else "--no-zoom",
+            "--track_time" if TRACK_TIME else "--no-track_time",
+        ]
         print(f"Command: {' '.join(cmd)}\n")
 
         result = subprocess.run(cmd)

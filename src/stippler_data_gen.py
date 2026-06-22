@@ -163,6 +163,28 @@ def run(args):
 
 # =============================================================================
 def main():
+    # Defaults #
+    n = -1  # Set to -1 to process all images in the folder
+    # n = 10
+    
+    n_iter = 5
+    n_point = 1024
+    pointsize = (1, 1)
+    # figsize = 6
+    # force = True
+    threshold = 255
+    # display = False
+    # interactive = False
+
+    # image_size = (512, 512)  # Width, Height
+    image_size = None  # Keep original size
+    accelerator = "numba"  # 'none', 'numpy', 'numba', 'cuda'
+    invert_image = False
+    invert_density = False
+    zoom = True
+    # overlay = False
+    track_time = True
+
     ############################
     # CONFIGURATION PARAMETERS #
     ############################
@@ -223,29 +245,6 @@ def main():
     # n_points = 12544  # 112
     n_iter = 10
     image_size = (512, 512)
-
-
-    # n = 10
-    n = -1  # Set to -1 to process all images in the folder
-    
-    # n_iter = 5
-    # n_point = 1024
-    pointsize = (1, 1)
-    # figsize = 6
-    # force = True
-    threshold = 255
-    # display = False
-    # interactive = False
-
-    # image_size = (512, 512)  # Width, Height
-    # image_size = None  # Keep original size
-    accelerator = "numba"  # 'none', 'numpy', 'numba', 'cuda'
-    invert_image = False
-    invert_density = False
-    zoom = True
-    # overlay = False
-    track_time = True
-
 
     # NOTE: Define Parser
     parser = argparse.ArgumentParser()
