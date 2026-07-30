@@ -167,7 +167,7 @@ def main():
     n = -1  # Set to -1 to process all images in the folder
     # n = 10
     
-    n_iter = 5
+    n_iter = 50
     n_point = 1024
     pointsize = (1, 1)
     # figsize = 6
@@ -190,34 +190,30 @@ def main():
     ############################
 
     # ICONS-50 - dataset
-    # data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/icons-50_512"
-    # n_point = 1024
-    # n_iter = 5
-    # image_size = (512, 512)
+    data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/icons-50_512_WVS"
+    n_point = 1024
+    image_size = (512, 512)
+    track_time = False
 
     # Quadratic Sample
     # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/results/quadratic_V2"
     # n_point = 1024
-    # n_iter = 10
     # image_size = None
 
     # Monkey Sample
     # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/results/monkey"
     # n_point = 1024
-    # n_iter = 10
     # image_size = None
 
     # Plant Sample
     # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/results/plant2"
     # n_point = 1024
-    # n_iter = 10
     # image_size = None
 
 
     # Faces Set Sample
     # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/faces_results_compare"
     # n_point = 1024
-    # n_iter = 10
     # image_size = (512, 512)
 
     # ICONS - TIMES - V1
@@ -225,12 +221,11 @@ def main():
     # n_point = 576
     # n_point = 1024
     # n_point = 2304
-    # n_iter = 10
     # image_size = (512, 512)
 
     # ICONS - TIMES - V2
-    data_path = "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/icons_results_runtimes"
-    n_point = 256  # 16
+    # data_path = "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/icons_results_runtimes"
+    # n_point = 256  # 16
     # n_points = 576  # 24 
     # n_points = 1024  # 32
     # n_points = 1600  # 40
@@ -243,8 +238,7 @@ def main():
     # n_points = 9216  # 96
     # n_points = 10816  # 104
     # n_points = 12544  # 112
-    n_iter = 10
-    image_size = (512, 512)
+    # image_size = (512, 512)
 
     # NOTE: Define Parser
     parser = argparse.ArgumentParser()
