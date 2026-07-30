@@ -59,6 +59,55 @@ def initialization(n, D):
     return np.array(samples)
 
 
+def points_to_canonical(points, width, height, scale=1.0):
+    """WVS solver output -> canonical (N,2) float64, x-then-y, [0,1], y increasing DOWNWARD.
+
+    Canonical is the convention control_v4/train_control.py:extract_points_from_target returns
+    ([cx / w, cy / h]), so an exported .npy is a drop-in replacement for centroid detection.
+
+    The relaxation runs in density-array pixel coordinates, and the density was row-flipped at load
+    (density = density[::-1, :]), so y points UP there -- the same reason the rasteriser below
+    computes y_img = (H - 1) - y. `scale` is the 1/zoom factor that maps zoomed-density pixels back
+    into original-image pixels; `width`/`height` must be the frame the scaled points live in.
+
+    This omits the rasteriser's np.rint(), which is the only lossy step. Note the two differ by up
+    to half a pixel: the rasteriser treats the pixel index as rint(coordinate), while normalising by
+    W/H is what agrees with extract_points_from_target's cx / w. The .npy follows the latter.
+    """
+    pts = np.asarray(points, dtype=np.float64) * float(scale)
+    if len(pts) == 0:
+        return pts.reshape(0, 2)
+    out = np.empty_like(pts)
+    out[:, 0] = pts[:, 0] / float(width)
+    out[:, 1] = 1.0 - pts[:, 1] / float(height)
+    # Half-open [0, 1): a coordinate of exactly 1.0 indexes one past the last pixel downstream.
+    return np.clip(out, 0.0, 1.0 - 1e-9)
+
+
+def save_points_npy(points, out_path, n_expected=None):
+    """Write canonical coordinates atomically.
+
+    n_expected is ASSERTED, not repaired. A short export means the relaxation did not place the
+    requested number of points, and silently padding it -- which the training loader does, with
+    UNIFORM RANDOM points -- would inject noise into a target whose point statistics are the object
+    of study.
+    """
+    pts = np.asarray(points, dtype=np.float64)
+    if pts.ndim != 2 or pts.shape[1] != 2:
+        raise ValueError(f"expected (N, 2) points, got {pts.shape}")
+    if n_expected is not None and len(pts) != n_expected:
+        raise ValueError(f"expected {n_expected} points, got {len(pts)} for {out_path}")
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    # np.save() APPENDS ".npy" when handed a path, which is why the temp name used to have to
+    # end in that extension itself -- leaving interrupted runs behind a temp file that any *.npy
+    # glob over the target dir would pick up as a real export. Passing a file handle suppresses
+    # the append, so the temp is a plain "<stem>.npy.tmp" and cannot be mistaken for one.
+    tmp = str(out_path) + ".tmp"
+    with open(tmp, "wb") as handle:
+        np.save(handle, pts)
+    os.replace(tmp, str(out_path))
+
+
 def run(args):
     filename = args.filename
     image = Image.open(filename).convert(mode='L')  # Convert to grayscale
@@ -109,11 +158,11 @@ def run(args):
         regions, points = voronoi.centroids(points, density, bbox, density_P, density_Q, accelerator=args.accelerator)
 
     # Export final result
-    # Save binary PNG of stipple points (one-pixel dots)
+    # Resolve the output frame ONCE, before choosing a representation: with --zoom the relaxation
+    # runs on the zoomed density, so points must be scaled back into original-image pixels.
     if args.zoom:
         H, W = og_density.shape[0], og_density.shape[1]
         scale_factor = 1.0 / zoom
-        pts = np.rint(points * scale_factor).astype(int)
 
         # # DEBUG #
         # fig = plt.figure(figsize=(W/100, H/100), dpi=100,
@@ -141,24 +190,40 @@ def run(args):
     
     else:
         H, W = density.shape[0], density.shape[1]
-        pts = np.rint(points).astype(int)
+        scale_factor = 1.0
 
-    # Clip to image bounds
-    x = np.clip(pts[:, 0], 0, W - 1)
-    y = np.clip(pts[:, 1], 0, H - 1)
-    # Convert to top-left origin for image coordinates
-    y_img = (H - 1) - y
+    # NPY: exact continuous coordinates, canonical [0,1] x-then-y with y DOWN. Same frame and the
+    # same y-flip the mask below applies (the density was row-flipped at load), but without the
+    # np.rint() -- the rounding is the only lossy step, and it is what merges points that land in
+    # one pixel.
+    if args.export_npy:
+        npy_filename = os.path.splitext(args.target_filename)[0] + ".npy"
+        save_points_npy(
+            points_to_canonical(points, width=W, height=H, scale=scale_factor),
+            npy_filename,
+            n_expected=args.n_point,
+        )
 
-    # # Create binary mask: white background (0), black points (255)
-    # mask = np.zeros((H, W), dtype=np.uint8)
-    # mask[y_img, x] = 255  # 255 = white points
+    # Save binary PNG of stipple points (one-pixel dots)
+    if args.export_png:
+        pts = np.rint(points * scale_factor).astype(int)
 
-    # Create binary mask: white background (255), black points (0)
-    mask = np.full((H, W), 255, dtype=np.uint8)
-    mask[y_img, x] = 0  # 0 = black points
+        # Clip to image bounds
+        x = np.clip(pts[:, 0], 0, W - 1)
+        y = np.clip(pts[:, 1], 0, H - 1)
+        # Convert to top-left origin for image coordinates
+        y_img = (H - 1) - y
 
-    # Export to OUTPUT_PATH
-    Image.fromarray(mask, mode='L').convert('1').save(args.target_filename)
+        # # Create binary mask: white background (0), black points (255)
+        # mask = np.zeros((H, W), dtype=np.uint8)
+        # mask[y_img, x] = 255  # 255 = white points
+
+        # Create binary mask: white background (255), black points (0)
+        mask = np.full((H, W), 255, dtype=np.uint8)
+        mask[y_img, x] = 0  # 0 = black points
+
+        # Export to OUTPUT_PATH
+        Image.fromarray(mask, mode='L').convert('1').save(args.target_filename)
 
 
 # =============================================================================
@@ -182,6 +247,8 @@ def main():
     invert_image = False
     invert_density = False
     zoom = True
+    export_png = True  # Write the rasterised target .png
+    export_npy = True  # Write exact continuous coordinates as target .npy
     # overlay = False
     track_time = True
 
@@ -190,7 +257,7 @@ def main():
     ############################
 
     # ICONS-50 - dataset
-    data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/icons-50_512_WVS"
+    data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/Icons-50_1024_WVS"
     n_point = 1024
     image_size = (512, 512)
     track_time = False
@@ -257,6 +324,10 @@ def main():
     parser.add_argument('--invert_image', action=argparse.BooleanOptionalAction, default=invert_image)
     parser.add_argument('--invert_density', action=argparse.BooleanOptionalAction, default=invert_density)
     parser.add_argument('--zoom', action=argparse.BooleanOptionalAction, default=zoom)
+    parser.add_argument('--export_png', action=argparse.BooleanOptionalAction, default=export_png,
+                        help="Write the rasterised target .png")
+    parser.add_argument('--export_npy', action=argparse.BooleanOptionalAction, default=export_npy,
+                        help="Write exact continuous coordinates as target .npy")
     parser.add_argument('--track_time', action=argparse.BooleanOptionalAction, default=track_time,
                         help="Enable time tracking; saves elapsed time per image to 'timestamps/' subfolder")
     # parser.add_argument('--overlay', action=argparse.BooleanOptionalAction, default=overlay)
