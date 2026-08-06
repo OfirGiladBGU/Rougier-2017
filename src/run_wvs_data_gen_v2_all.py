@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Run stippler_data_gen.py for all ICONS-TIMES-V2 n_point values.
+"""Run wvs_data_gen.py for all ICONS-TIMES-V2 n_point values.
 
 After each run, the output subfolders (target, timestamps) are renamed
 with a _WVS_<N_POINT> postfix. original/ and source/ are left untouched.
 
 All run parameters are passed explicitly on the command line so this driver
-does not depend on the defaults inside stippler_data_gen.py.
+does not depend on the defaults inside wvs_data_gen.py.
 """
 
 import subprocess
