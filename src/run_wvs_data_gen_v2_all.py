@@ -14,7 +14,7 @@ from pathlib import Path
 
 # -- Configuration -------------------------------------------------------------
 
-SCRIPT_PATH = Path(__file__).parent / "stippler_data_gen.py"
+SCRIPT_PATH = Path(__file__).parent / "wvs_data_gen.py"
 
 DATA_PATH = Path(
     "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion"
