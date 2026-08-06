@@ -24,7 +24,7 @@ DATA_PATH = Path(
 # Full ICONS - TIMES - V2 parameter set (passed explicitly; do not assume the
 # underlying script defaults).
 N = -1                  # -1 == process all images
-N_ITER = 10
+N_ITER = 50
 IMAGE_SIZE = (512, 512)
 POINTSIZE = (1, 1)
 THRESHOLD = 255
