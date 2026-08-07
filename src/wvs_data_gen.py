@@ -258,26 +258,30 @@ def main():
     # CONFIGURATION PARAMETERS #
     ############################
 
-    # ICONS-50 - dataset
+    # Icons-50 - dataset
     data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/Icons-50_1024_WVS"
     n_point = 1024
     image_size = (512, 512)
     track_time = False
 
+
     # Quadratic Sample
-    # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/results/quadratic_V2"
+    # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/images_results_metrics/quadratic_V2"
     # n_point = 1024
     # image_size = None
+    # track_time = False
 
     # Monkey Sample
-    # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/results/monkey"
+    # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/images_results_metrics/monkey"
     # n_point = 1024
     # image_size = None
+    # track_time = False
 
     # Plant Sample
-    # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/results/plant2"
+    # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/images_results_metrics/plant2"
     # n_point = 1024
     # image_size = None
+    # track_time = False
 
 
     # Faces Set Sample
@@ -285,29 +289,18 @@ def main():
     # n_point = 1024
     # image_size = (512, 512)
 
-    # ICONS - TIMES - V1
+    # Icons-50 - METRICS
+    # data_path = "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/quantitative_advance_metrics"
+    # n_point = 1024
+    # track_time = False
+
+    # Icons-50 - TIMES - V1
     # data_path = "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/icons_results_runtimes"
     # n_point = 576
     # n_point = 1024
     # n_point = 2304
     # image_size = (512, 512)
 
-    # ICONS - TIMES - V2
-    # data_path = "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/icons_results_runtimes"
-    # n_point = 256  # 16
-    # n_points = 576  # 24 
-    # n_points = 1024  # 32
-    # n_points = 1600  # 40
-    # n_points = 2304  # 48
-    # n_points = 3136  # 56
-    # n_points = 4096  # 64
-    # n_points = 5184  # 72
-    # n_points = 6400  # 80
-    # n_points = 7744  # 88
-    # n_points = 9216  # 96
-    # n_points = 10816  # 104
-    # n_points = 12544  # 112
-    # image_size = (512, 512)
 
     # NOTE: Define Parser
     parser = argparse.ArgumentParser()
