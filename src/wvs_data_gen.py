@@ -288,6 +288,7 @@ def main():
     # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/faces_results_compare"
     # n_point = 1024
     # image_size = (512, 512)
+    # track_time = False
 
     # Icons-50 - METRICS
     # data_path = "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/quantitative_advance_metrics"
