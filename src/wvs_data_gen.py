@@ -14,6 +14,11 @@ import time
 import scipy.ndimage
 import numpy as np
 from PIL import Image
+
+try:
+    import cv2  # only needed for --apply_preprocess
+except Exception:
+    cv2 = None
 import matplotlib.pyplot as plt
 import sys
 DIR_PATH = os.path.dirname(__file__)
@@ -110,19 +115,88 @@ def save_points_npy(points, out_path, n_expected=None):
     os.replace(tmp, str(out_path))
 
 
+# --- GBN preprocessing (ported from GaussianBlueNoise/scripts/image_preprocess.py) ---
+def percentile_stretch(gray, p_low=1.0, p_high=99.0):
+    lo, hi = np.percentile(gray, [p_low, p_high])
+    if hi - lo < 1e-6:
+        return gray.copy()
+    out = (gray.astype(np.float32) - lo) * (255.0 / (hi - lo))
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
+def apply_clahe(gray, clip_limit=3.0, tile=8):
+    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(tile, tile))
+    return clahe.apply(gray)
+
+
+def unsharp_mask(gray, sigma=1.4, amount=1.5):
+    blur = cv2.GaussianBlur(gray, (0, 0), sigma)
+    sharp = cv2.addWeighted(gray.astype(np.float32), 1.0 + amount, blur.astype(np.float32), -amount, 0)
+    return np.clip(sharp, 0, 255).astype(np.uint8)
+
+
+def suppress_background(gray):
+    g = gray.copy()
+    _, bin_img = cv2.threshold(g, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    bin_img = cv2.morphologyEx(bin_img, cv2.MORPH_OPEN, k, iterations=1)
+    bin_img = cv2.morphologyEx(bin_img, cv2.MORPH_CLOSE, k, iterations=1)
+    h, w = bin_img.shape
+    flood = bin_img.copy()
+    flood_mask = np.zeros((h + 2, w + 2), dtype=np.uint8)
+    cv2.floodFill(flood, flood_mask, (0, 0), 128)
+    bg = flood == 128
+    out = g.astype(np.float32)
+    out[bg] = 0.30 * out[bg] + 0.70 * 255.0
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
+def preprocess_image(gray, do_bg_suppression=True):
+    """GBN enhancement: stretch -> CLAHE -> unsharp -> stretch -> optional bg-suppress."""
+    if cv2 is None:
+        raise RuntimeError("cv2 (opencv-python) is required for --apply_preprocess")
+    x = percentile_stretch(gray, 1.0, 99.0)
+    x = apply_clahe(x, 3.0, 8)
+    x = unsharp_mask(x, 1.4, 1.5)
+    x = percentile_stretch(x, 0.8, 99.2)
+    if do_bg_suppression:
+        x = suppress_background(x)
+    return x
+
+
+def load_gray_on_white(filename):
+    """Open as grayscale, compositing any transparency onto WHITE so a transparent
+    background becomes white. Plain .convert('L') on an RGBA image ignores alpha and
+    turns transparent (RGB 0,0,0) pixels BLACK -- which the stippler then fills with dots.
+    """
+    img = Image.open(filename)
+    if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+        img = img.convert("RGBA")
+        bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
+        img = Image.alpha_composite(bg, img)
+    return img.convert("L")
+
+
 def run(args):
     filename = args.filename
-    image = Image.open(filename).convert(mode='L')  # Convert to grayscale
+    image = load_gray_on_white(filename)  # transparency -> white, then grayscale
 
     # Resize image if requested
     if args.image_size is not None and image.size != args.image_size:
         image = image.resize(size=args.image_size, resample=Image.LANCZOS)
 
+    # Optional GBN-style grayscale enhancement, before invert/save (matches gbn_data_gen).
+    if args.apply_preprocess:
+        gray = preprocess_image(np.array(image), do_bg_suppression=not args.disable_bg_suppression)
+        image = Image.fromarray(gray)
+
     if args.invert_image:
         image = Image.fromarray(255 - np.array(image))
 
-    # Export to SOURCE_PATH
-    image.save(args.source_filename)
+    # Export to SOURCE_PATH. When the input IS the source (dataset has no original/), this
+    # would overwrite the file we just read -- skip it and leave source/ exactly as staged.
+    if os.path.abspath(filename) != os.path.abspath(args.source_filename):
+        image.save(args.source_filename)
     og_density = np.array(image, dtype=np.float32)
 
     # Invert image colors if requested
@@ -248,40 +322,91 @@ def main():
     accelerator = "numba"  # 'none', 'numpy', 'numba', 'cuda'
     invert_image = False
     invert_density = False
+    apply_preprocess = False
+    disable_bg_suppression = False
     zoom = True
     export_png = True  # Write the rasterised target .png
     export_npy = True  # Write exact continuous coordinates as target .npy
+    overwrite = False  # Re-run images whose target outputs already exist
     # overlay = False
     track_time = True
+
+    target_folder = "target"
 
     ############################
     # CONFIGURATION PARAMETERS #
     ############################
 
     # Icons-50 - dataset
-    data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/Icons-50_1024_WVS"
-    n_point = 1024
-    image_size = (512, 512)
-    track_time = False
+    # data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/Icons-50_1024_WVS"
+    # n_point = 1024
+    # image_size = (512, 512)
+    # track_time = False
+
+    # CelebA-5K - dataset
+    # data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/CelebA-5K_1024_WVS"
+    # n_point = 1024
+    # image_size = (512, 512)
+    # apply_preprocess = True
+    # track_time = False
+
+    # ShapeNetRendering - dataset
+    # data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/ShapeNetRendering-3K_256_WVS"
+    # n_point = 256
+    # image_size = None
+    # track_time = False
+
+    # ShapeNetRenderingV2 - dataset
+    # data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/ShapeNetRenderingV2-3K_576_WVS"
+    # n_point = 576
+    # image_size = (448, 448)
+    # apply_preprocess = True
+    # track_time = False
+
+    # AirplaneCarShip - dataset
+    # data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/AirplaneCarShip-3K_1600_WVS"
+    # n_point = 1600
+    # image_size = (384, 384)
+    # apply_preprocess = True
+    # track_time = False
+
+    # ShapeNetRender_Custom - dataset
+    # data_path = r"/groups/asharf_group/ofirgila/ControlNet/training/ShapeNetRender_Custom-3K_1600_WVS"
+    # n_point = 1600
+    # image_size = None
+    # apply_preprocess = True
+    # track_time = False
 
 
     # Quadratic Sample
-    # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/images_results_metrics/quadratic_V2"
+    # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/images_results_metrics/quadratic"
     # n_point = 1024
     # image_size = None
     # track_time = False
+    # target_folder = f"target_WVS_{n_point}"
 
     # Monkey Sample
     # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/images_results_metrics/monkey"
     # n_point = 1024
     # image_size = None
     # track_time = False
+    # target_folder = f"target_WVS_{n_point}"
 
     # Plant Sample
     # data_path = r"/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/images_results_metrics/plant2"
     # n_point = 1024
     # image_size = None
     # track_time = False
+    # target_folder = f"target_WVS_{n_point}"
+
+
+    # Spectral Analysis Set Sample
+    data_path = "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/spectral_analysis"
+    n_point = 1024
+    apply_preprocess = False
+    image_size = None
+    track_time = False
+    target_folder = f"target_WVS_{n_point}"
 
 
     # Faces Set Sample
@@ -289,11 +414,13 @@ def main():
     # n_point = 1024
     # image_size = (512, 512)
     # track_time = False
+    # target_folder = f"target_WVS_{n_point}"
 
     # Icons-50 - METRICS
     # data_path = "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/quantitative_advance_metrics"
     # n_point = 1024
     # track_time = False
+    # target_folder = f"target_WVS_{n_point}"
 
     # Icons-50 - TIMES - V1
     # data_path = "/groups/asharf_group/ofirgila/ExampleBasedSamplingWithDiffusion/experiments/outputs/icons_results_runtimes"
@@ -301,6 +428,7 @@ def main():
     # n_point = 1024
     # n_point = 2304
     # image_size = (512, 512)
+    # target_folder = f"target_WVS_{n_point}"
 
 
     # NOTE: Define Parser
@@ -313,12 +441,21 @@ def main():
     # parser.add_argument('--figsize', type=int, default=figsize)
     # parser.add_argument('--force', action=argparse.BooleanOptionalAction, default=force)
     parser.add_argument('--threshold', type=int, default=threshold)
+    parser.add_argument('--target_folder', type=str, default=target_folder,
+                        help='Output folder name under --data_path (e.g. target_WVS_1024).')
+    parser.add_argument('--overwrite', action=argparse.BooleanOptionalAction, default=overwrite,
+                        help='Re-run images whose target outputs already exist. '
+                             '--no-overwrite skips them, to resume a partial run.')
     # parser.add_argument('--display', action=argparse.BooleanOptionalAction, default=display)
     # parser.add_argument('--interactive', action=argparse.BooleanOptionalAction, default=interactive)
     parser.add_argument('--image_size', type=int, nargs=2, default=image_size)
     parser.add_argument('--accelerator', type=str, default=accelerator)
     parser.add_argument('--invert_image', action=argparse.BooleanOptionalAction, default=invert_image)
     parser.add_argument('--invert_density', action=argparse.BooleanOptionalAction, default=invert_density)
+    parser.add_argument('--apply_preprocess', action=argparse.BooleanOptionalAction, default=apply_preprocess,
+                        help='Apply the GBN preprocessing pipeline to the source before stippling')
+    parser.add_argument('--disable_bg_suppression', action=argparse.BooleanOptionalAction, default=disable_bg_suppression,
+                        help='Skip the background-suppression step of the preprocess')
     parser.add_argument('--zoom', action=argparse.BooleanOptionalAction, default=zoom)
     parser.add_argument('--export_png', action=argparse.BooleanOptionalAction, default=export_png,
                         help="Write the rasterised target .png")
@@ -331,9 +468,22 @@ def main():
 
 
     # NOTE: Build paths
-    IMAGES_PATH = os.path.join(args.data_path, "original")
+    # Read inputs from original/ when present, else source/. Reading from source/ means the
+    # images ARE the source: there is no original -> source step to perform, so preprocessing
+    # is forced off (it would preprocess an already-preprocessed image) and run() leaves
+    # source/ untouched.
+    ORIGINAL_PATH = os.path.join(args.data_path, "original")
     SOURCE_PATH = os.path.join(args.data_path, "source")
-    TARGET_PATH = os.path.join(args.data_path, "target")
+    use_original = os.path.isdir(ORIGINAL_PATH)
+    IMAGES_PATH = ORIGINAL_PATH if use_original else SOURCE_PATH
+    if not os.path.isdir(IMAGES_PATH):
+        raise FileNotFoundError(
+            f"No 'original/' or 'source/' folder under: {args.data_path}")
+    if not use_original and args.apply_preprocess:
+        print("Note: no 'original/' folder -- reading from 'source/' and skipping "
+              "--apply_preprocess (those images are already the source).", file=sys.stderr)
+        args.apply_preprocess = False
+    TARGET_PATH = os.path.join(args.data_path, args.target_folder)
     JSON_PATH = os.path.join(args.data_path, "prompt.json")
     TIMESTAMPS_PATH = os.path.join(args.data_path, "timestamps") if args.track_time else None
     dataset_paths = dict(
@@ -363,12 +513,25 @@ def main():
     if args.n == -1:
         args.n = len(image_files)
     args.n = min(args.n, len(image_files))
+    skipped = 0
     for i in tqdm.tqdm(range(args.n)):
         args.filename = os.path.join(IMAGES_PATH, image_files[i])
-        args.source_filename = os.path.join(SOURCE_PATH, image_files[i])
-        args.target_filename = os.path.join(TARGET_PATH, image_files[i])
+        # Always write source/target as PNG (convert .jpg etc.), matching gbn_data_gen.
+        rel_png = os.path.splitext(image_files[i])[0] + ".png"
+        args.source_filename = os.path.join(SOURCE_PATH, rel_png)
+        args.target_filename = os.path.join(TARGET_PATH, rel_png)
         os.makedirs(os.path.dirname(args.source_filename), exist_ok=True)
         os.makedirs(os.path.dirname(args.target_filename), exist_ok=True)
+
+        # Resume support. Only the outputs THIS run would write are checked, so
+        # flipping an export flag cannot make it skip work it has not done.
+        if not args.overwrite:
+            npy_path = os.path.splitext(args.target_filename)[0] + '.npy'
+            ready = ((os.path.exists(args.target_filename) if args.export_png else True)
+                     and (os.path.exists(npy_path) if args.export_npy else True))
+            if ready:
+                skipped += 1
+                continue
         
         # Time tracking
         if args.track_time:
@@ -391,8 +554,8 @@ def main():
     json_data = []
     for i in tqdm.tqdm(range(args.n)):
         json_data.append({
-            "source": f"source/{image_files[i]}",
-            "target": f"target/{image_files[i]}",
+            "source": f"source/{os.path.splitext(image_files[i])[0]}.png",
+            "target": f"target/{os.path.splitext(image_files[i])[0]}.png",
             "prompt": f"Stippling"
         })
     with open(JSON_PATH, 'w') as f:
